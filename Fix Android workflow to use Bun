@@ -1,4 +1,4 @@
-name: Build ExpenseFlow Android App Bundle (AAB)
+ name: Build ExpenseFlow Android App Bundle (AAB)
 
 on:
   push:
@@ -40,7 +40,9 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '15859902'
 
       - name: Grant execute permission for Gradle wrapper
         run: chmod +x android/gradlew
