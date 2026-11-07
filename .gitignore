@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.pem
+*.key
+*.keystore
+*.jks
+keystore.properties
+release-keystore.properties
+*service-account*.json
+*credentials*.json
+service-account.json

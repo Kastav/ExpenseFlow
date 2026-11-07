@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "PremiumWaitlistEntry": {
+      "title": "Premium Waitlist Entry",
+      "description": "Centralized record of a user who has requested early access notification for ExpenseFlow Premium.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Original formatted email provided by user.",
+          "maxLength": 254,
+          "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        },
+        "normalizedEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Trimmed, lowercase canonical email used for duplicate checking and unique indexing.",
+          "maxLength": 254,
+          "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        },
+        "registrationDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when user registered."
+        },
+        "consentToProductUpdates": {
+          "type": "boolean",
+          "description": "Explicit opt-in consent to receive product updates, launch notices, and early bird pricing."
+        },
+        "consentTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of when user checked the consent box."
+        },
+        "source": {
+          "type": "string",
+          "description": "Origin of the registration, e.g. 'upgrade_modal', 'more_menu', 'insights_view'.",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status of the waitlist subscriber.",
+          "enum": ["pending", "confirmed", "unsubscribed"]
+        },
+        "selectedPlan": {
+          "type": "string",
+          "description": "Plan tier interest expressed by subscriber at time of registration.",
+          "enum": ["monthly", "annual", "undecided"]
+        }
+      },
+      "required": [
+        "email",
+        "normalizedEmail",
+        "registrationDate",
+        "consentToProductUpdates",
+        "source",
+        "status",
+        "selectedPlan"
+      ]
+    }
+  },
+  "firestore": {
+    "/premium_waitlist/{waitlistId}": {
+      "schema": "PremiumWaitlistEntry",
+      "description": "Secure collection storing centralized early-access registrations for ExpenseFlow Premium."
+    }
+  }
+}

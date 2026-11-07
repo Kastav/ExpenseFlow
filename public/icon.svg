@@ -1,0 +1,21 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <defs>
+    <linearGradient id='bgGrad' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#0F233D'/>
+      <stop offset='100%' stop-color='#142D4E'/>
+    </linearGradient>
+    <linearGradient id='accentGrad' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#14B8A6'/>
+      <stop offset='100%' stop-color='#0D9488'/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded card -->
+  <rect width='512' height='512' rx='112' fill='url(#bgGrad)'/>
+  <!-- Inner circular badge -->
+  <circle cx='256' cy='256' r='180' fill='#1E3A5F' opacity='0.5'/>
+  <!-- Flow lines symbol -->
+  <path d='M160 330 C200 240, 240 340, 280 250 C310 180, 340 210, 360 170' fill='none' stroke='url(#accentGrad)' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/>
+  <!-- Diamond coin indicator -->
+  <circle cx='360' cy='170' r='24' fill='#FBBF24'/>
+  <circle cx='160' cy='330' r='18' fill='#14B8A6'/>
+</svg>

@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light !important;
+  --bg-page: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --text-primary: #142D4E;
+  --text-secondary: #64748B;
+  --border-color: #E2E8F0;
+  --teal-primary: #0D9488;
+  --indigo-primary: #6366F1;
+  --success: #16A34A;
+  --warning: #D97706;
+  --error: #DC2626;
+
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html, body {
+  background-color: #F8FAFC;
+  color: #142D4E;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular figures for all financial amounts and calculations */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Touch manipulation optimization for mobile */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "ExpenseFlow",
+  "description": "Professional, mobile-first personal expense tracking web application with light-mode-only interface, budget tracking, purchase planning, and local data persistence.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
