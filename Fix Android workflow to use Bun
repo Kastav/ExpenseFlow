@@ -39,14 +39,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Verify Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          test -d "$ANDROID_HOME"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version || true
-          "$ANDROID_HOME/platform-tools/adb" version || true
-
       - name: Grant execute permission for Gradle wrapper
         run: chmod +x android/gradlew
 
@@ -73,7 +65,7 @@ jobs:
             echo "signed=true" >> $GITHUB_OUTPUT
             echo "::notice ::Android App Bundle signed successfully for Google Play Store release."
           else
-            echo "::warning ::Release signing credentials are not configured. The generated AAB is UNSIGNED and cannot be uploaded directly to Google Play."
+            echo "::warning ::Release signing credentials (ANDROID_KEYSTORE_BASE64, etc.) are not configured in GitHub Secrets. The generated AAB is UNSIGNED and CANNOT be uploaded directly to Google Play production until signed."
             mv android/app/build/outputs/bundle/release/app-release.aab android/app/build/outputs/bundle/release/expenseflow-unsigned-build.aab
             echo "signed=false" >> $GITHUB_OUTPUT
           fi
