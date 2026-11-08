@@ -10,13 +10,12 @@ on:
 jobs:
   build-aab:
     name: Build Android App Bundle
-    # Pin the runner to Ubuntu 24.04 for reproducibility.
-    # Test Ubuntu 26.04 explicitly before changing this pin.
+    # Pin to Ubuntu 24.04 for reproducibility; validate Ubuntu 26.04 before migrating.
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -36,7 +35,7 @@ jobs:
         run: bunx cap sync android
 
       - name: Set up Java JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
