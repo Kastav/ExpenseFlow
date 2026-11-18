@@ -657,6 +657,7 @@ export interface FirestoreTxAdapter {
 
 export interface FirestoreDriver {
   getDoc(key: FirestoreDocKey): Promise<Record<string, unknown> | null>;
+  queryDocsByField(collection: string, field: string, value: string): Promise<Array<Record<string, unknown>>>;
   setDoc(key: FirestoreDocKey, data: Record<string, unknown>): Promise<void>;
   deleteDoc(key: FirestoreDocKey): Promise<void>;
   runTransaction<T>(fn: (tx: FirestoreTxAdapter) => Promise<T>): Promise<T>;
@@ -669,6 +670,10 @@ export function createAdminFirestoreDriver(db: Firestore): FirestoreDriver {
     async getDoc(key) {
       const snap = await refFor(key).get();
       return snap.exists ? ((snap.data() as Record<string, unknown>) || null) : null;
+    },
+    async queryDocsByField(collection, field, value) {
+      const snap = await db.collection(collection).where(field, '==', value).get();
+      return snap.docs.map((doc) => (doc.data() as Record<string, unknown>) || {});
     },
     async setDoc(key, data) {
       await refFor(key).set(stripUndefinedFields(data));
@@ -747,10 +752,54 @@ export class FirestoreEntitlementStore implements EntitlementStore {
   async getPurchaseRecordByUserId(userId: string): Promise<StoredPurchaseRecord | null> {
     const safeUid = crypto.createHash('sha256').update(userId).digest('hex');
     const indexDoc = await this.driver.getDoc({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid });
-    const tokenHash = typeof indexDoc?.tokenHash === 'string' ? indexDoc.tokenHash : null;
-    if (!tokenHash) return null;
-    const record = await this.getPurchaseRecord(tokenHash);
-    return record?.userId === userId && record.ownershipStatus !== 'unbound' ? record : null;
+    const indexedHash = typeof indexDoc?.tokenHash === 'string' ? indexDoc.tokenHash : null;
+    const indexedRecord = indexedHash ? await this.getPurchaseRecord(indexedHash) : null;
+
+    // Always reconcile against the legacy entitlement collection. Older purchases may
+    // predate user_entitlements, so relying on the new index alone can incorrectly
+    // downgrade an existing subscriber to Free.
+    const legacyRecords = await this.driver.queryDocsByField(
+      FIRESTORE_COLLECTIONS.ENTITLEMENTS,
+      'userId',
+      userId
+    );
+    const candidates = [indexedRecord, ...legacyRecords]
+      .filter((record): record is StoredPurchaseRecord =>
+        Boolean(record) &&
+        record!.userId === userId &&
+        record!.ownershipStatus !== 'unbound' &&
+        typeof record!.tokenHash === 'string' &&
+        typeof record!.tokenId === 'string'
+      );
+
+    if (candidates.length === 0) return null;
+
+    const nowMs = Date.now();
+    candidates.sort((a, b) => {
+      const aActive = !a.revoked && a.expiryTimeMillis > nowMs && (a.status === 'active' || a.status === 'canceled');
+      const bActive = !b.revoked && b.expiryTimeMillis > nowMs && (b.status === 'active' || b.status === 'canceled');
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      if (a.expiryTimeMillis !== b.expiryTimeMillis) return b.expiryTimeMillis - a.expiryTimeMillis;
+      return b.updatedAt - a.updatedAt;
+    });
+
+    const record = candidates[0];
+    // Idempotently backfill both lookup indexes for legacy records.
+    await this.driver.runTransaction(async (tx) => {
+      tx.set(this.tokenIndexKey(record.tokenId), {
+        tokenHash: record.tokenHash,
+        userId,
+        ownershipStatus: 'bound',
+        productId: record.productId,
+        updatedAt: record.updatedAt,
+      });
+      tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+        tokenHash: record.tokenHash,
+        userId,
+        updatedAt: record.updatedAt,
+      });
+    });
+    return record;
   }
 
   async upsertPurchaseRecord(record: StoredPurchaseRecord): Promise<void> {
