@@ -638,6 +638,7 @@ export class FileEntitlementStore implements EntitlementStore {
 
 export const FIRESTORE_COLLECTIONS = {
   ENTITLEMENTS: 'billing_entitlements',
+  USER_ENTITLEMENTS: 'user_entitlements',
   TOKEN_INDEX: 'billing_token_index',
   RTDN_NOTIFICATIONS: 'rtdn_notifications',
   AI_QUOTAS: 'ai_usage_quotas',
