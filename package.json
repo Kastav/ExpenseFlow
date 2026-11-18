@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx src/utils/billing.test.ts && tsx src/utils/aiCoach.test.ts && tsx src/utils/storage.test.ts && tsx src/utils/phase1BillingSecurity.test.ts && tsx src/utils/phase2AuthFirestore.test.ts && tsx src/utils/releaseReadiness.test.ts",
+    "test": "tsx src/utils/billing.test.ts && tsx src/utils/aiCoach.test.ts && tsx src/utils/storage.test.ts && tsx src/utils/phase1BillingSecurity.test.ts && tsx src/utils/cloudSync.test.ts && tsx src/utils/phase2AuthFirestore.test.ts && tsx src/utils/releaseReadiness.test.ts",
     "cap:sync": "cap sync android",
     "cap:build": "npm run build && cap sync android"
   },
