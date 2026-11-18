@@ -592,6 +592,24 @@ async function runPhase2Tests() {
       const persistedAcrossRestart = await storeInstanceB.getPurchaseRecord(tokenHash);
       assert(persistedAcrossRestart?.userId === 'uid_user_a', 'Firestore must durably persist userId binding across instances');
 
+      // 3c-1. Authenticated entitlement endpoint resolves by Firebase UID, not client tier flags.
+      const myEntitlement = await fetch(`${baseUrl}/api/entitlements/me`, {
+        headers: { Authorization: 'Bearer valid_fb_user_a', 'X-ExpenseFlow-Entitlement-Tier': 'free' },
+      });
+      const myEntitlementJson = (await myEntitlement.json()) as { premium?: boolean; tier?: string };
+      assert(myEntitlement.status === 200 && myEntitlementJson.premium === true && myEntitlementJson.tier === 'premium',
+        'Verified active Play purchase must resolve as Premium for its bound Firebase UID');
+
+      const freeEntitlement = await fetch(`${baseUrl}/api/entitlements/me`, {
+        headers: { Authorization: 'Bearer valid_fb_free_user', 'X-ExpenseFlow-Entitlement-Tier': 'premium' },
+      });
+      const freeEntitlementJson = (await freeEntitlement.json()) as { premium?: boolean; tier?: string };
+      assert(freeEntitlement.status === 200 && freeEntitlementJson.premium === false && freeEntitlementJson.tier === 'free',
+        'Free Firebase UID must remain Free even when client sends a spoofed Premium header');
+
+      const unauthEntitlement = await fetch(`${baseUrl}/api/entitlements/me`);
+      assert(unauthEntitlement.status === 401, 'Entitlement endpoint must reject requests without Firebase ID token');
+
       // 3d. Cross-user purchase-token rejection (User B cannot verify OR use User A's token on Coach)
       const crossVerify = await fetch(`${baseUrl}/api/billing/verify`, {
         method: 'POST',
