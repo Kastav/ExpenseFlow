@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Firestore, DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { getAdminFirestore, isFirebaseAdminConfigured } from './firebaseAdmin.ts';
+import { PLAY_PRODUCT_IDS } from '../types/billing';
 
 export interface StoredPurchaseRecord {
   tokenHash: string;
@@ -91,6 +92,7 @@ export interface EntitlementStore {
   readonly backendName: 'firestore' | 'file';
   getPurchaseRecord(tokenHash: string): Promise<StoredPurchaseRecord | null>;
   getPurchaseRecordByTokenId(tokenId: string): Promise<StoredPurchaseRecord | null>;
+  getPurchaseRecordByUserId?(userId: string): Promise<StoredPurchaseRecord | null>;
   upsertPurchaseRecord(record: StoredPurchaseRecord): Promise<void>;
   acquirePurchaseVerificationLock(params: AcquirePurchaseLockParams): Promise<AcquirePurchaseLockResult>;
   releasePurchaseVerificationLock(tokenHash: string, deleteIfUncommitted: boolean): Promise<void>;
@@ -311,6 +313,15 @@ export class FileEntitlementStore implements EntitlementStore {
       const tokenHash = state.tokenIdIndex[tokenId];
       if (!tokenHash) return null;
       return state.purchases[tokenHash] || null;
+    });
+  }
+
+  async getPurchaseRecordByUserId(userId: string): Promise<StoredPurchaseRecord | null> {
+    return this.withLock(() => {
+      const state = this.readState();
+      return Object.values(state.purchases)
+        .filter((record) => record.userId === userId && record.ownershipStatus !== 'unbound')
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
     });
   }
 
@@ -628,6 +639,7 @@ export class FileEntitlementStore implements EntitlementStore {
 
 export const FIRESTORE_COLLECTIONS = {
   ENTITLEMENTS: 'billing_entitlements',
+  USER_ENTITLEMENTS: 'user_entitlements',
   TOKEN_INDEX: 'billing_token_index',
   RTDN_NOTIFICATIONS: 'rtdn_notifications',
   AI_QUOTAS: 'ai_usage_quotas',
@@ -646,6 +658,7 @@ export interface FirestoreTxAdapter {
 
 export interface FirestoreDriver {
   getDoc(key: FirestoreDocKey): Promise<Record<string, unknown> | null>;
+  queryDocsByField(collection: string, field: string, value: string): Promise<Array<Record<string, unknown>>>;
   setDoc(key: FirestoreDocKey, data: Record<string, unknown>): Promise<void>;
   deleteDoc(key: FirestoreDocKey): Promise<void>;
   runTransaction<T>(fn: (tx: FirestoreTxAdapter) => Promise<T>): Promise<T>;
@@ -658,6 +671,10 @@ export function createAdminFirestoreDriver(db: Firestore): FirestoreDriver {
     async getDoc(key) {
       const snap = await refFor(key).get();
       return snap.exists ? ((snap.data() as Record<string, unknown>) || null) : null;
+    },
+    async queryDocsByField(collection, field, value) {
+      const snap = await db.collection(collection).where(field, '==', value).get();
+      return snap.docs.map((doc) => (doc.data() as Record<string, unknown>) || {});
     },
     async setDoc(key, data) {
       await refFor(key).set(stripUndefinedFields(data));
@@ -733,6 +750,85 @@ export class FirestoreEntitlementStore implements EntitlementStore {
     return this.getPurchaseRecord(tokenHash);
   }
 
+  async getPurchaseRecordByUserId(userId: string): Promise<StoredPurchaseRecord | null> {
+    const safeUid = crypto.createHash('sha256').update(userId).digest('hex');
+    const indexDoc = await this.driver.getDoc({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid });
+    const indexedHash = typeof indexDoc?.tokenHash === 'string' ? indexDoc.tokenHash : null;
+    const indexedRecord = indexedHash ? await this.getPurchaseRecord(indexedHash) : null;
+    const nowMs = Date.now();
+    const isActivePremiumRecord = (record: StoredPurchaseRecord | null): record is StoredPurchaseRecord =>
+      Boolean(record && record.userId === userId && record.ownershipStatus !== 'unbound' &&
+        !record.revoked && record.expiryTimeMillis > nowMs &&
+        (record.status === 'active' || record.status === 'canceled') &&
+        (record.productId === PLAY_PRODUCT_IDS.MONTHLY || record.productId === PLAY_PRODUCT_IDS.ANNUAL));
+
+    // Fast path: once the UID index is healthy, avoid a collection query and writes
+    // on every Premium authorization check.
+    if (isActivePremiumRecord(indexedRecord)) return indexedRecord;
+
+    // Older purchases may predate user_entitlements. Reconcile them from the durable
+    // purchase collection instead of incorrectly downgrading an existing subscriber.
+    const legacyRecords = await this.driver.queryDocsByField(
+      FIRESTORE_COLLECTIONS.ENTITLEMENTS,
+      'userId',
+      userId
+    );
+    const candidates: StoredPurchaseRecord[] = [];
+    const addCandidate = (raw: Record<string, unknown> | StoredPurchaseRecord | null) => {
+      if (!raw) return;
+      const record = raw as unknown as StoredPurchaseRecord;
+      if (
+        record.userId === userId &&
+        record.ownershipStatus !== 'unbound' &&
+        typeof record.tokenHash === 'string' &&
+        typeof record.tokenId === 'string' &&
+        typeof record.productId === 'string' &&
+        typeof record.expiryTimeMillis === 'number' &&
+        Number.isFinite(record.expiryTimeMillis) &&
+        typeof record.updatedAt === 'number' &&
+        Number.isFinite(record.updatedAt)
+      ) {
+        candidates.push(record);
+      }
+    };
+    addCandidate(indexedRecord);
+    for (const legacyRecord of legacyRecords) addCandidate(legacyRecord);
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => {
+      const aActive = isActivePremiumRecord(a);
+      const bActive = isActivePremiumRecord(b);
+      if (aActive !== bActive) return aActive ? -1 : 1;
+      if (a.expiryTimeMillis !== b.expiryTimeMillis) return b.expiryTimeMillis - a.expiryTimeMillis;
+      return b.updatedAt - a.updatedAt;
+    });
+
+    const record = candidates[0];
+    // Repair only missing/stale index documents. Avoid a Firestore write on every lookup.
+    const tokenIndex = await this.driver.getDoc(this.tokenIndexKey(record.tokenId));
+    const uidIndexNeedsRepair = indexedHash !== record.tokenHash || indexDoc?.userId !== userId;
+    const tokenIndexNeedsRepair = tokenIndex?.tokenHash !== record.tokenHash || tokenIndex?.userId !== userId ||
+      tokenIndex?.ownershipStatus !== 'bound';
+    if (uidIndexNeedsRepair || tokenIndexNeedsRepair) {
+      await this.driver.runTransaction(async (tx) => {
+        tx.set(this.tokenIndexKey(record.tokenId), {
+          tokenHash: record.tokenHash,
+          userId,
+          ownershipStatus: 'bound',
+          productId: record.productId,
+          updatedAt: record.updatedAt,
+        });
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash,
+          userId,
+          updatedAt: record.updatedAt,
+        });
+      });
+    }
+    return record;
+  }
+
   async upsertPurchaseRecord(record: StoredPurchaseRecord): Promise<void> {
     await this.driver.runTransaction(async (tx) => {
       tx.set(this.entitlementKey(record.tokenHash), record as unknown as Record<string, unknown>);
@@ -743,6 +839,12 @@ export class FirestoreEntitlementStore implements EntitlementStore {
         productId: record.productId,
         updatedAt: record.updatedAt,
       });
+      if (record.userId) {
+        const safeUid = crypto.createHash('sha256').update(record.userId).digest('hex');
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash, userId: record.userId, updatedAt: record.updatedAt,
+        });
+      }
     });
   }
 
@@ -892,6 +994,12 @@ export class FirestoreEntitlementStore implements EntitlementStore {
         productId: record.productId,
         updatedAt: record.updatedAt,
       });
+      if (resolvedUid) {
+        const safeUid = crypto.createHash('sha256').update(resolvedUid).digest('hex');
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash, userId: resolvedUid, updatedAt: record.updatedAt,
+        });
+      }
       return { ok: true };
     });
   }
