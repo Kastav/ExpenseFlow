@@ -15,6 +15,7 @@ import {
 } from './src/server/playBillingVerification.ts';
 import { getEntitlementStoreStatus } from './src/server/entitlementStore.ts';
 import { isFirebaseAdminConfigured } from './src/server/firebaseAdmin.ts';
+import { CloudSyncRouteDeps, createCloudSyncGetHandler, createCloudSyncPutHandler } from './src/server/cloudSyncRoute.ts';
 
 dotenv.config();
 
@@ -78,6 +79,7 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 export interface CreateAppOptions {
   billingDeps?: BillingVerificationDeps;
   coachDeps?: CoachRouteDeps;
+  cloudSyncDeps?: CloudSyncRouteDeps;
   disableVite?: boolean;
 }
 
@@ -103,7 +105,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
       res.setHeader('Vary', 'Origin');
     }
 
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Content-Type, Authorization, X-Requested-With, X-ExpenseFlow-Entitlement-Tier, X-Client-Device-ID'
@@ -168,6 +170,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
   app.post('/api/billing/verify', createVerifyPurchaseHandler(options.billingDeps));
   app.post('/api/billing/rtdn', createRtdnHandler(options.billingDeps));
   app.get('/api/entitlements/me', createMyEntitlementHandler(options.billingDeps));
+
+  // Premium-only Cloud Sync. UID and entitlement are verified server-side on every request.
+  const cloudSyncDeps: CloudSyncRouteDeps = options.cloudSyncDeps || {
+    store: options.billingDeps?.store,
+    verifyCallerToken: options.billingDeps?.verifyCallerToken,
+  };
+  app.get('/api/cloud-sync/snapshot', createCloudSyncGetHandler(cloudSyncDeps));
+  app.put('/api/cloud-sync/snapshot', createCloudSyncPutHandler(cloudSyncDeps));
 
   if (options.disableVite) {
     return app;
