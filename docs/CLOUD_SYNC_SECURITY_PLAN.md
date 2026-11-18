@@ -1,6 +1,6 @@
 # Premium Cloud Sync — Security & Implementation Plan
 
-Status: approved product direction; implementation and production deployment are NOT complete.
+Status: backend API foundation implemented on the feature branch; client integration, live Firebase verification, and production deployment are NOT complete.
 Branch: feat/firestore-cloud-sync
 Base: current branch head at the time this plan was added.
 
@@ -20,9 +20,24 @@ Base: current branch head at the time this plan was added.
 - Firestore rules currently default-deny client access.
 - Firebase Admin token verification exists in src/server/firebaseAdmin.ts.
 - Google Play purchase verification and durable entitlement storage exist in src/server/playBillingVerification.ts and src/server/entitlementStore.ts.
-- Current entitlement store supports lookup by purchase token/token ID, but does not expose a query for an active entitlement by Firebase UID. Add this capability before authorizing sync.
+- Entitlement lookup by Firebase UID is implemented. If the UID index is missing, the store reconciles against legacy `billing_entitlements` records and repairs the UID/token indexes. A fast path avoids repeated repair writes for healthy active subscriptions.
 - src/utils/stageAvailability.ts currently hard-disables cloudSyncEnabled. Keep it fail-closed until the backend reports verified readiness.
 - Financial records are stored locally by src/utils/storage.ts. Preserve the existing localStorage keys and migration behavior.
+
+## Implemented on the feature branch
+
+- `GET /api/cloud-sync/snapshot` and `PUT /api/cloud-sync/snapshot` are registered in the Express server.
+- Every request requires a Firebase ID token; UID is derived only from the verified token.
+- Every request checks the current server-side Play entitlement for the same UID and supported monthly/annual product.
+- Snapshots are stored at `users/{uid}/cloud_sync/snapshot` through Firebase Admin only.
+- PUT requires `baseRevision` and an `idempotencyKey`; stale revisions return HTTP 409 and exact retries are idempotent.
+- Snapshot schema is versioned and validates transaction, budget, plan, currency, country, and challenge data. The current snapshot cap is 48 KiB; the Express JSON parser cap remains 64 KiB.
+- A Firestore-backed rolling per-UID rate limit allows up to 30 GET/PUT requests per minute.
+- Client-supplied UID and Premium headers are ignored. Firestore client rules remain default-deny.
+- Automated route tests cover unauthenticated denial, Free-user spoofing denial, UID isolation, valid upload/readback, invalid schema, idempotent retry, revision conflict, and rate limiting.
+- Legacy entitlement reconciliation has a regression test proving a missing UID index is repaired from the existing purchase record.
+
+**Not implemented yet:** client-side sync UI/service, first-sync merge/restore flow, live Firebase/Play verification, deployment, and enabling `cloudSyncEnabled`. Local storage remains the source of truth and Cloud Sync remains disabled.
 
 ## Required server design
 
