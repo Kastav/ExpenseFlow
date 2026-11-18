@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Firestore, DocumentReference, Transaction } from 'firebase-admin/firestore';
 import { getAdminFirestore, isFirebaseAdminConfigured } from './firebaseAdmin.ts';
+import { PLAY_PRODUCT_IDS } from '../types/billing';
 
 export interface StoredPurchaseRecord {
   tokenHash: string;
@@ -754,10 +755,19 @@ export class FirestoreEntitlementStore implements EntitlementStore {
     const indexDoc = await this.driver.getDoc({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid });
     const indexedHash = typeof indexDoc?.tokenHash === 'string' ? indexDoc.tokenHash : null;
     const indexedRecord = indexedHash ? await this.getPurchaseRecord(indexedHash) : null;
+    const nowMs = Date.now();
+    const isActivePremiumRecord = (record: StoredPurchaseRecord | null): record is StoredPurchaseRecord =>
+      Boolean(record && record.userId === userId && record.ownershipStatus !== 'unbound' &&
+        !record.revoked && record.expiryTimeMillis > nowMs &&
+        (record.status === 'active' || record.status === 'canceled') &&
+        (record.productId === PLAY_PRODUCT_IDS.MONTHLY || record.productId === PLAY_PRODUCT_IDS.ANNUAL));
 
-    // Always reconcile against the legacy entitlement collection. Older purchases may
-    // predate user_entitlements, so relying on the new index alone can incorrectly
-    // downgrade an existing subscriber to Free.
+    // Fast path: once the UID index is healthy, avoid a collection query and writes
+    // on every Premium authorization check.
+    if (isActivePremiumRecord(indexedRecord)) return indexedRecord;
+
+    // Older purchases may predate user_entitlements. Reconcile them from the durable
+    // purchase collection instead of incorrectly downgrading an existing subscriber.
     const legacyRecords = await this.driver.queryDocsByField(
       FIRESTORE_COLLECTIONS.ENTITLEMENTS,
       'userId',
@@ -774,31 +784,36 @@ export class FirestoreEntitlementStore implements EntitlementStore {
 
     if (candidates.length === 0) return null;
 
-    const nowMs = Date.now();
     candidates.sort((a, b) => {
-      const aActive = !a.revoked && a.expiryTimeMillis > nowMs && (a.status === 'active' || a.status === 'canceled');
-      const bActive = !b.revoked && b.expiryTimeMillis > nowMs && (b.status === 'active' || b.status === 'canceled');
+      const aActive = isActivePremiumRecord(a);
+      const bActive = isActivePremiumRecord(b);
       if (aActive !== bActive) return aActive ? -1 : 1;
       if (a.expiryTimeMillis !== b.expiryTimeMillis) return b.expiryTimeMillis - a.expiryTimeMillis;
       return b.updatedAt - a.updatedAt;
     });
 
     const record = candidates[0];
-    // Idempotently backfill both lookup indexes for legacy records.
-    await this.driver.runTransaction(async (tx) => {
-      tx.set(this.tokenIndexKey(record.tokenId), {
-        tokenHash: record.tokenHash,
-        userId,
-        ownershipStatus: 'bound',
-        productId: record.productId,
-        updatedAt: record.updatedAt,
+    // Repair only missing/stale index documents. Avoid a Firestore write on every lookup.
+    const tokenIndex = await this.driver.getDoc(this.tokenIndexKey(record.tokenId));
+    const uidIndexNeedsRepair = indexedHash !== record.tokenHash || indexDoc?.userId !== userId;
+    const tokenIndexNeedsRepair = tokenIndex?.tokenHash !== record.tokenHash || tokenIndex?.userId !== userId ||
+      tokenIndex?.ownershipStatus !== 'bound';
+    if (uidIndexNeedsRepair || tokenIndexNeedsRepair) {
+      await this.driver.runTransaction(async (tx) => {
+        tx.set(this.tokenIndexKey(record.tokenId), {
+          tokenHash: record.tokenHash,
+          userId,
+          ownershipStatus: 'bound',
+          productId: record.productId,
+          updatedAt: record.updatedAt,
+        });
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash,
+          userId,
+          updatedAt: record.updatedAt,
+        });
       });
-      tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
-        tokenHash: record.tokenHash,
-        userId,
-        updatedAt: record.updatedAt,
-      });
-    });
+    }
     return record;
   }
 
