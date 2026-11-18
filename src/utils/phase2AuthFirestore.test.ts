@@ -9,9 +9,11 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { createHash } from 'crypto';
 import { createApp } from '../../server';
 import {
   FirestoreEntitlementStore,
+  FIRESTORE_COLLECTIONS,
   FirestoreDriver,
   FirestoreDocKey,
   FirestoreTxAdapter,
