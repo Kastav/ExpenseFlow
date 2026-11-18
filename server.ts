@@ -8,6 +8,7 @@ import {
   handleBillingStatus,
   createVerifyPurchaseHandler,
   createRtdnHandler,
+  createMyEntitlementHandler,
   isPlayBillingConfigured,
   isRtdnConfigured,
   BillingVerificationDeps,
@@ -166,6 +167,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
   app.get('/api/billing/status', handleBillingStatus);
   app.post('/api/billing/verify', createVerifyPurchaseHandler(options.billingDeps));
   app.post('/api/billing/rtdn', createRtdnHandler(options.billingDeps));
+  app.get('/api/entitlements/me', createMyEntitlementHandler(options.billingDeps));
 
   if (options.disableVite) {
     return app;

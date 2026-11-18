@@ -91,6 +91,7 @@ export interface EntitlementStore {
   readonly backendName: 'firestore' | 'file';
   getPurchaseRecord(tokenHash: string): Promise<StoredPurchaseRecord | null>;
   getPurchaseRecordByTokenId(tokenId: string): Promise<StoredPurchaseRecord | null>;
+  getPurchaseRecordByUserId?(userId: string): Promise<StoredPurchaseRecord | null>;
   upsertPurchaseRecord(record: StoredPurchaseRecord): Promise<void>;
   acquirePurchaseVerificationLock(params: AcquirePurchaseLockParams): Promise<AcquirePurchaseLockResult>;
   releasePurchaseVerificationLock(tokenHash: string, deleteIfUncommitted: boolean): Promise<void>;
@@ -311,6 +312,15 @@ export class FileEntitlementStore implements EntitlementStore {
       const tokenHash = state.tokenIdIndex[tokenId];
       if (!tokenHash) return null;
       return state.purchases[tokenHash] || null;
+    });
+  }
+
+  async getPurchaseRecordByUserId(userId: string): Promise<StoredPurchaseRecord | null> {
+    return this.withLock(() => {
+      const state = this.readState();
+      return Object.values(state.purchases)
+        .filter((record) => record.userId === userId && record.ownershipStatus !== 'unbound')
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
     });
   }
 
@@ -733,6 +743,15 @@ export class FirestoreEntitlementStore implements EntitlementStore {
     return this.getPurchaseRecord(tokenHash);
   }
 
+  async getPurchaseRecordByUserId(userId: string): Promise<StoredPurchaseRecord | null> {
+    const safeUid = crypto.createHash('sha256').update(userId).digest('hex');
+    const indexDoc = await this.driver.getDoc({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid });
+    const tokenHash = typeof indexDoc?.tokenHash === 'string' ? indexDoc.tokenHash : null;
+    if (!tokenHash) return null;
+    const record = await this.getPurchaseRecord(tokenHash);
+    return record?.userId === userId && record.ownershipStatus !== 'unbound' ? record : null;
+  }
+
   async upsertPurchaseRecord(record: StoredPurchaseRecord): Promise<void> {
     await this.driver.runTransaction(async (tx) => {
       tx.set(this.entitlementKey(record.tokenHash), record as unknown as Record<string, unknown>);
@@ -743,6 +762,12 @@ export class FirestoreEntitlementStore implements EntitlementStore {
         productId: record.productId,
         updatedAt: record.updatedAt,
       });
+      if (record.userId) {
+        const safeUid = crypto.createHash('sha256').update(record.userId).digest('hex');
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash, userId: record.userId, updatedAt: record.updatedAt,
+        });
+      }
     });
   }
 
@@ -892,6 +917,12 @@ export class FirestoreEntitlementStore implements EntitlementStore {
         productId: record.productId,
         updatedAt: record.updatedAt,
       });
+      if (resolvedUid) {
+        const safeUid = crypto.createHash('sha256').update(resolvedUid).digest('hex');
+        tx.set({ collection: FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS, id: safeUid }, {
+          tokenHash: record.tokenHash, userId: resolvedUid, updatedAt: record.updatedAt,
+        });
+      }
       return { ok: true };
     });
   }

@@ -1218,6 +1218,57 @@ export function createVerifyPurchaseHandler(deps: BillingVerificationDeps = {}) 
   };
 }
 
+
+/**
+ * GET /api/entitlements/me
+ * Returns the caller's server-verified Play entitlement. Never accepts client tier flags.
+ */
+export function createMyEntitlementHandler(deps: BillingVerificationDeps = {}) {
+  return async function handleMyEntitlement(req: Request, res: Response): Promise<void> {
+    const bearer = extractBearerToken(req);
+    if (!bearer) {
+      res.status(401).json({ success: false, status: 'unauthorized' });
+      return;
+    }
+    const verifyCaller = deps.verifyCallerToken || (async (token: string) => {
+      const caller = await verifyFirebaseIdToken(token);
+      return caller ? { uid: caller.uid, obfuscatedAccountId: caller.obfuscatedAccountId } : null;
+    });
+    const caller = await verifyCaller(bearer);
+    if (!caller?.uid) {
+      res.status(401).json({ success: false, status: 'unauthorized' });
+      return;
+    }
+    let store: EntitlementStore;
+    try {
+      store = deps.store || (await getConfiguredEntitlementStore());
+    } catch {
+      res.status(503).json({ success: false, status: 'configuration_required' });
+      return;
+    }
+    if (!store.getPurchaseRecordByUserId) {
+      res.status(503).json({ success: false, status: 'configuration_required', message: 'User entitlement lookup is unavailable.' });
+      return;
+    }
+    const record = await store.getPurchaseRecordByUserId(caller.uid);
+    const nowMs = deps.now ? deps.now() : Date.now();
+    const active = Boolean(
+      record && record.userId === caller.uid && record.ownershipStatus !== 'unbound' &&
+      !record.revoked && record.expiryTimeMillis > nowMs &&
+      (record.status === 'active' || record.status === 'canceled') &&
+      (record.productId === PLAY_PRODUCT_IDS.MONTHLY || record.productId === PLAY_PRODUCT_IDS.ANNUAL)
+    );
+    res.status(200).json({
+      success: true,
+      tier: active ? 'premium' : 'free',
+      premium: active,
+      status: active ? record?.status : 'inactive',
+      expiresAt: active ? new Date(record!.expiryTimeMillis).toISOString() : null,
+      productId: active ? record?.productId : null,
+    });
+  };
+}
+
 export const handleVerifyPurchase = createVerifyPurchaseHandler();
 
 /**
