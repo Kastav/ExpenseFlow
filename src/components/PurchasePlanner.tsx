@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { trackEvent } from '../services/analytics';
 import { PremiumFeatureId } from '../types/premium';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface PurchasePlannerProps {
   currency?: CurrencyCode;
@@ -59,6 +60,8 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+
+  useModalBackHandler(showResetConfirm, () => setShowResetConfirm(false));
 
   const autosaveTimeoutRef = useRef<number | null>(null);
   const latestPlanRef = useRef<PlanData>({
@@ -302,7 +305,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
   }, 0);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-6">
       {/* Storage Read Failure Warning Banner */}
       {planReadStatus === 'error' && (
         <div
@@ -326,12 +329,12 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#142D4E]">
-            Plan & Budget
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#142D4E]">
+            Plan &amp; Budget
           </h1>
-          <p className="text-sm text-[#64748B] mt-0.5">
-            Plan budgets, recurring bills, and assess purchase affordability · Currency:{' '}
+          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+            Plan budgets, upcoming bills, and affordability ·{' '}
             <strong className="font-semibold text-teal-700">{currency}</strong>
           </p>
         </div>
@@ -342,7 +345,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
             onClick={handleManualSave}
             disabled={planReadStatus === 'error'}
             id="save-plan-btn"
-            className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-xs min-h-[40px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-xs min-h-[44px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
               saveStatus === 'saved'
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                 : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98]'
@@ -365,7 +368,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
           <button
             type="button"
             onClick={() => setShowResetConfirm(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-slate-200 shadow-2xs min-h-[40px] cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-slate-200 shadow-2xs min-h-[44px] cursor-pointer"
             title="Clear all plan inputs"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
@@ -376,15 +379,15 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
 
       {/* Confirmation & Status Banners */}
       {saveStatus === 'saved' && (
-        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs sm:text-sm font-medium shadow-2xs animate-in fade-in">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs sm:text-sm font-medium shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2 min-w-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{statusMessage || 'Plan saved successfully.'}</span>
           </div>
           <button
             type="button"
             onClick={() => setSaveStatus('idle')}
-            className="text-emerald-700 hover:text-emerald-900 p-1"
+            className="text-emerald-700 hover:text-emerald-900 min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center rounded-lg cursor-pointer shrink-0"
             aria-label="Dismiss message"
           >
             <X className="w-4 h-4" />
@@ -393,15 +396,15 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
       )}
 
       {saveStatus === 'error' && (
-        <div className="flex items-center justify-between p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs sm:text-sm font-medium shadow-2xs animate-in fade-in">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs sm:text-sm font-medium shadow-2xs animate-in fade-in">
+          <div className="flex items-center gap-2 min-w-0">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{statusMessage || 'Unable to save plan. Please check inputs.'}</span>
           </div>
           <button
             type="button"
             onClick={() => setSaveStatus('idle')}
-            className="text-rose-700 hover:text-rose-900 p-1"
+            className="text-rose-700 hover:text-rose-900 min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center rounded-lg cursor-pointer shrink-0"
             aria-label="Dismiss message"
           >
             <X className="w-4 h-4" />
@@ -411,16 +414,16 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Input Form (7 cols on desktop) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs space-y-5">
-          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-            <div>
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-5 min-w-0">
+          <div className="border-b border-slate-100 pb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
               <h2 className="text-base font-bold text-[#142D4E]">Financial Parameters ({currency})</h2>
               <p className="text-xs text-[#64748B] mt-0.5">
                 Enter your total budget, committed obligations, and planned purchases.
               </p>
             </div>
             {isDirty && (
-              <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+              <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
                 Unsaved edits
               </span>
             )}
@@ -447,8 +450,9 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                   inputMode="decimal"
                   placeholder="0.00"
                   value={availableMoney}
+                  onFocus={scrollInputIntoViewOnFocus}
                   onChange={(e) => handleFieldChange('available', e.target.value)}
-                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all"
+                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all min-h-[48px]"
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
@@ -476,8 +480,9 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                   inputMode="decimal"
                   placeholder="0.00"
                   value={upcomingBills}
+                  onFocus={scrollInputIntoViewOnFocus}
                   onChange={(e) => handleFieldChange('bills', e.target.value)}
-                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all"
+                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all min-h-[48px]"
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
@@ -505,8 +510,9 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                   inputMode="decimal"
                   placeholder="0.00"
                   value={otherExpenses}
+                  onFocus={scrollInputIntoViewOnFocus}
                   onChange={(e) => handleFieldChange('other', e.target.value)}
-                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all"
+                  className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-base font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all min-h-[48px]"
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
@@ -534,8 +540,9 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                   inputMode="decimal"
                   placeholder="0.00"
                   value={proposedPurchase}
+                  onFocus={scrollInputIntoViewOnFocus}
                   onChange={(e) => handleFieldChange('purchase', e.target.value)}
-                  className="w-full rounded-xl border-2 border-teal-500 bg-white py-2.5 pl-10 pr-4 text-lg font-bold text-[#142D4E] tabular-nums focus:outline-none focus:ring-2 focus:ring-teal-200 transition-all"
+                  className="w-full rounded-xl border-2 border-teal-500 bg-white py-2.5 pl-10 pr-4 text-lg font-bold text-[#142D4E] tabular-nums focus:outline-none focus:ring-2 focus:ring-teal-200 transition-all min-h-[48px]"
                 />
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
@@ -560,7 +567,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                       key={p.id}
                       type="button"
                       onClick={() => setPriority(p.id)}
-                      className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-xl text-left border transition-all min-h-[48px] cursor-pointer ${
                         priority === p.id
                           ? 'border-teal-600 bg-teal-50/70 ring-1 ring-teal-500 text-teal-950 font-bold'
                           : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
@@ -581,26 +588,26 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCategoryBudgets(!showCategoryBudgets)}
-                className="flex items-center justify-between w-full py-2 text-left text-xs font-semibold text-[#142D4E] hover:text-teal-700 transition-colors"
+                className="flex items-center justify-between w-full py-2.5 text-left text-xs font-semibold text-[#142D4E] hover:text-teal-700 transition-colors min-h-[44px] cursor-pointer"
               >
-                <div className="flex items-center gap-1.5">
-                  <PieChart className="w-4 h-4 text-teal-600" />
-                  <span>Category-Specific Budgets (Optional)</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <PieChart className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span className="truncate">Category Budgets (Optional)</span>
                   {totalCategoryBudget > 0 && (
-                    <span className="ml-1 text-[11px] font-normal text-slate-500">
-                      ({formatCurrency(totalCategoryBudget, currency)} total)
+                    <span className="ml-1 text-[11px] font-normal text-slate-500 shrink-0">
+                      ({formatCurrency(totalCategoryBudget, currency)})
                     </span>
                   )}
                 </div>
                 {showCategoryBudgets ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                  <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                 )}
               </button>
 
               {showCategoryBudgets && (
-                <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="mt-3 p-3.5 sm:p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
                   <p className="text-xs text-slate-600 leading-relaxed">
                     Optionally allocate target budgets to individual expense categories. All category targets are saved with your plan.
                   </p>
@@ -625,8 +632,9 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                             inputMode="decimal"
                             placeholder="0"
                             value={categoryBudgets[cat.name] || ''}
+                            onFocus={scrollInputIntoViewOnFocus}
                             onChange={(e) => handleCategoryBudgetChange(cat.name, e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-200"
+                            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm font-semibold text-[#142D4E] tabular-nums focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-200 min-h-[44px]"
                           />
                         </div>
                       </div>
@@ -645,7 +653,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
             <button
               type="button"
               onClick={handleManualSave}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer min-h-[42px]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer min-h-[44px]"
             >
               <Save className="w-4 h-4" />
               <span>Save Plan</span>
@@ -654,11 +662,11 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
         </div>
 
         {/* Right Column: Calculation Result & Breakdown (5 cols on desktop) */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-5 space-y-4 min-w-0">
           {/* Result Card */}
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Estimated Remaining ({currency})
                 </span>
@@ -677,7 +685,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
 
               {/* Big Figure */}
               <div
-                className={`text-4xl font-extrabold tracking-tight tabular-nums ${
+                className={`text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums truncate ${
                   result.isAffordable ? 'text-green-700' : 'text-red-600'
                 }`}
               >
@@ -801,7 +809,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
             </div>
           </div>
 
-          {/* AI Purchase Advice (Premium Feature Teaser) */}
+          {/* AI Purchase Advice (Stage 2 Teaser) */}
           <div className="bg-gradient-to-br from-teal-50/60 to-amber-50/50 rounded-2xl border border-amber-200/80 p-4 text-xs space-y-2.5 shadow-2xs">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
@@ -809,19 +817,19 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                 <span>AI Spending Coach Advice</span>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
-                Premium
+                Stage 2 · Coming Later
               </span>
             </div>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Want personalized AI reasoning on whether this purchase fits your upcoming cash flow? The conversational AI Spending Coach is an upcoming Premium feature ($14.99/mo or $109.99/yr).
+              Conversational AI cash-flow advice is a planned Stage 2 Premium feature ($14.99/mo or $109.99/yr) and is unavailable in this Stage 1 offline-first build. Your local affordability calculation above is 100% free.
             </p>
             {onOpenUpgrade && (
               <button
                 type="button"
                 onClick={() => onOpenUpgrade('ai_spending_coach')}
-                className="w-full py-2 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-amber-300 rounded-xl text-amber-950 font-bold text-xs transition-all shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-amber-300 rounded-xl text-amber-950 font-bold text-xs transition-all shadow-2xs min-h-[44px] cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>Explore AI Spending Coach</span>
+                <span>View Stage 2 Plans</span>
                 <ArrowRight className="w-3.5 h-3.5 text-amber-600" />
               </button>
             )}
@@ -831,7 +839,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
           <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-4 text-xs text-slate-600 space-y-1.5">
             <div className="flex items-center gap-1.5 font-semibold text-[#142D4E]">
               <Info className="w-4 h-4 text-slate-500 shrink-0" />
-              <span>Calculation & Estimation Notice</span>
+              <span>Calculation &amp; Estimation Notice</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500">
               This calculation is an estimate based solely on the information you entered. It is not connected to any bank or financial institution, does not reflect real-time account balances, and does not constitute financial advice.
@@ -843,12 +851,13 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
           role="dialog"
           aria-modal="true"
+          onClick={() => setShowResetConfirm(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-slate-200 p-6 space-y-4"
+            className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-slate-200 p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -864,14 +873,14 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[38px]"
+                className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmReset}
-                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs min-h-[38px]"
+                className="px-4 py-2.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs min-h-[44px] cursor-pointer"
               >
                 Clear Plan
               </button>

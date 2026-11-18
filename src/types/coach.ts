@@ -53,7 +53,7 @@ export interface CoachChatRequestPayload {
 export interface CoachChatResponsePayload {
   success: boolean;
   reply?: string;
-  error?: 'configuration_required' | 'entitlement_required' | 'rate_limited' | 'quota_exceeded' | 'invalid_request' | 'server_error';
+  error?: 'unauthorized' | 'configuration_required' | 'entitlement_required' | 'rate_limited' | 'quota_exceeded' | 'invalid_request' | 'server_error';
   message?: string;
   usage?: {
     monthlyRequestsUsed: number;

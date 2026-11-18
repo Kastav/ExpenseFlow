@@ -21,8 +21,18 @@ html, body {
   color: #142D4E;
   margin: 0;
   padding: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent iOS/Android text size inflation while preserving zoom */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Tabular figures for all financial amounts and calculations */
@@ -31,7 +41,18 @@ html, body {
   font-feature-settings: "tnum";
 }
 
-/* Touch manipulation optimization for mobile */
+/* Touch manipulation optimization and keyboard scroll margin for mobile */
 button, a, input, select, textarea {
   touch-action: manipulation;
 }
+
+input, select, textarea {
+  scroll-margin-bottom: 120px;
+}
+
+/* Smooth momentum scrolling inside scrollable sheets and lists */
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+

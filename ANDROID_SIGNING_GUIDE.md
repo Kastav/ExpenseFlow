@@ -1,19 +1,19 @@
-# ExpenseFlow Android Release Signing & Play Store Guide
+# ExpenseFlow Android Release Signing, CI/CD & Hosting Guide
 
-This document describes how to securely generate your release keystore, configure GitHub Actions secrets for automated AAB signing, and prepare the artifact for the Google Play Console.
+This document describes how to generate your Android upload keystore, build signed Stage 1 offline-first (and future Stage 2) `.aab` bundles cleanly with `.github/workflows/build-android.yml` (JDK 21), and publish static compliance pages on GitHub Pages.
 
 ---
 
 ## 1. Zero-Leak Security Rule
 
-- **NEVER** commit `release.keystore`, `*.jks`, or `keystore.properties` to Git or GitHub.
-- Keystore credentials must be stored strictly in **GitHub Repository Secrets** or local offline storage.
+- **NEVER** commit `release.keystore`, `*.jks`, `*.aab`, `*.apk`, `keystore.properties`, or Google Service Account JSON files to Git or GitHub.
+- Keystore credentials belong strictly in **GitHub Repository Secrets** or an offline password manager.
 
 ---
 
-## 2. Generating Your Android Release Keystore
+## 2. Generating Your Android Upload Keystore (PKCS12 Recommended)
 
-Run the following command on your local machine (macOS/Linux terminal or Windows PowerShell with JDK installed):
+Run on your local machine with JDK 17/21 `keytool`:
 
 ```bash
 keytool -genkeypair -v \
@@ -22,82 +22,61 @@ keytool -genkeypair -v \
   -keyalg RSA \
   -keysize 2048 \
   -validity 10000 \
-  -storetype JKS
+  -storetype PKCS12
 ```
 
-When prompted:
-1. Enter and remember a strong keystore password (e.g. 24+ characters).
-2. Enter your Organization / Name details.
-3. Confirm with `yes`.
-
-**Safely backup** `expenseflow-release.keystore` in an offline password manager (1Password, Bitwarden, KeePass). If lost, Google Play will not allow updates unless you reset upload keys via Google Play App Signing.
+Back up `expenseflow-release.keystore` and its password in two secure offline locations.
 
 ---
 
-## 3. Configuring GitHub Actions Secrets for Automated Builds
+## 3. GitHub Repository Secrets & Stage 1 vs Stage 2 Variables
 
-To allow `.github/workflows/build-android.yml` to produce a signed `expenseflow-signed-release.aab`:
+Open your GitHub repository -> **Settings > Secrets and variables > Actions**:
 
-1. Convert your keystore file to Base64:
-   ```bash
-   # On macOS:
-   base64 -i expenseflow-release.keystore | pbcopy
+### Repository Secrets (`Secrets` tab — Required for `release-aab`)
+Encode your keystore to single-line Base64:
+```bash
+# macOS:
+base64 -i expenseflow-release.keystore | pbcopy
 
-   # On Linux:
-   base64 -w 0 expenseflow-release.keystore
+# Linux:
+base64 -w 0 expenseflow-release.keystore
 
-   # On Windows (PowerShell):
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes("expenseflow-release.keystore"))
-   ```
-
-2. Go to your GitHub repository:
-   - Navigate to **Settings > Secrets and variables > Actions**.
-   - Click **New repository secret** and add the following 4 secrets:
+# Windows PowerShell:
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("expenseflow-release.keystore")) | Set-Clipboard
+```
 
 | Secret Name | Value |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64` | The complete Base64 string generated above |
-| `ANDROID_KEYSTORE_PASSWORD` | The keystore password you specified in keytool |
+| `ANDROID_KEYSTORE_BASE64` | Single-line Base64 keystore output |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
 | `ANDROID_KEY_ALIAS` | `expenseflow_release_key` |
-| `ANDROID_KEY_PASSWORD` | The key password you specified in keytool |
+| `ANDROID_KEY_PASSWORD` | Key password (same as `ANDROID_KEYSTORE_PASSWORD` for PKCS12) |
 
-3. Trigger the workflow:
-   - Go to **Actions > Build ExpenseFlow Android App Bundle (AAB)** > **Run workflow**.
-   - The workflow will build and sign `expenseflow-signed-release.aab`.
-   - Download the artifact from the workflow run summary.
-
----
-
-## 4. Manual Signing via Command Line (Alternative)
-
-If you prefer to sign locally after building an unsigned AAB:
-
-```bash
-# In the android directory:
-./gradlew bundleRelease
-
-# Sign the AAB:
-jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-  -keystore /path/to/expenseflow-release.keystore \
-  -storepass YOUR_KEYSTORE_PASSWORD \
-  -keypass YOUR_KEY_PASSWORD \
-  app/build/outputs/bundle/release/app-release.aab expenseflow_release_key
-```
+### Repository Variables (`Variables` tab)
+| Variable Name | Stage 1 Value | Stage 2 Value (Future) |
+|---|---|---|
+| `VITE_API_BASE_URL` | **Leave unset/empty** for Stage 1 offline-first release | Set to permanent `https://` Cloud Run URL (never `localhost` or `http://`) |
+| `ANDROID_VERSION_CODE` *(optional)* | `1` (increment for each Play upload) | Increment per upload |
+| `ANDROID_VERSION_NAME` *(optional)* | `1.0` | Next release version |
 
 ---
 
-## 5. Uploading to Google Play Console
+## 4. Triggering `.github/workflows/build-android.yml`
 
-1. Log in to [Google Play Console](https://play.google.com/console).
-2. Select **ExpenseFlow** (`com.expenseflow.app`).
-3. Navigate to **Testing > Internal testing** (or **Production**).
-4. Click **Create new release**.
-5. Upload `expenseflow-signed-release.aab`.
-6. Enter release notes:
-   ```
-   ExpenseFlow 1.0.0 Initial Release
-   - Fast, local-first zero-latency expense tracking
-   - Monthly burn rate and recommended daily allowance pacing
-   - AI Personal Spending Coach with Google Play subscription integration
-   ```
-7. Review and save release.
+- Runs `bun run lint`, `bun run test`, `bun run build`, and `bunx cap sync android`.
+- Verifies locked `applicationId "com.expenseflow.app"`.
+- In Stage 1 (`VITE_API_BASE_URL` empty), logs notice and compiles a **Stage 1 offline-first signed AAB** (`Premium` billing, AI Coach, and Cloud Sync disabled in UI).
+- If `VITE_API_BASE_URL` is provided, rejects non-HTTPS or `localhost` URLs.
+- Fails closed if any `ANDROID_KEYSTORE_*` secret is missing when `build_mode` is `release-aab`.
+- Builds under **Temurin JDK 21** and cryptographically verifies `expenseflow-signed-release.aab` using `jarsigner -verify -verbose -certs`.
+
+---
+
+## 5. Free Public Compliance Hosting (GitHub Pages `/docs`)
+
+In Stage 1, no Cloud Run backend is required to host legal pages:
+1. Enable **Settings > Pages > Deploy from a branch: `main` -> `/docs`**.
+2. Public URLs become:
+   - `https://<github-username>.github.io/<repo-name>/privacy.html`
+   - `https://<github-username>.github.io/<repo-name>/delete-account.html`

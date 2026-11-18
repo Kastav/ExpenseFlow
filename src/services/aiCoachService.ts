@@ -19,12 +19,25 @@ import {
   CoachLocalUsage,
 } from '../types/coach';
 import { getCurrentUserPlanTier, getStoredEntitlementToken } from '../utils/premium';
+import { ApiConfigurationError, resolveApiUrl, ResolveApiUrlOptions } from '../utils/apiConfig';
 
 const LOCAL_USAGE_KEY = 'expenseflow_ai_local_usage_v1';
 const DEVICE_ID_KEY = 'expenseflow_device_id_v1';
 
 export const MAX_MONTHLY_QUOTA = 100;
 export const MAX_REQUESTS_PER_MINUTE = 5;
+
+let coachAuthTokenProvider: (() => Promise<string | null> | string | null) | null = null;
+
+/**
+ * Registers the active customer authentication token provider (Firebase ID token)
+ * attached as Authorization: Bearer <idToken> on AI Coach requests.
+ */
+export function setCoachAuthTokenProvider(
+  provider: (() => Promise<string | null> | string | null) | null
+): void {
+  coachAuthTokenProvider = provider;
+}
 
 /**
  * Returns or initializes a persistent, anonymous device identifier for rate limiting.
@@ -195,9 +208,23 @@ export function buildSafeFinancialSummary(
 /**
  * Checks the status of the server-side AI Coach route.
  */
-export async function checkCoachBackendStatus(): Promise<CoachBackendStatus> {
+export async function checkCoachBackendStatus(
+  apiConfigOptions?: ResolveApiUrlOptions
+): Promise<CoachBackendStatus> {
+  const unavailableResponse: CoachBackendStatus = {
+    available: false,
+    requiresConfig: true,
+    model: 'gemini-4-hydrogen',
+    costProtection: {
+      maxMonthlyRequests: MAX_MONTHLY_QUOTA,
+      maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
+      maxMessageLength: 500,
+    },
+  };
+
   try {
-    const res = await fetch('/api/coach/status', {
+    const url = resolveApiUrl('/api/coach/status', apiConfigOptions);
+    const res = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -205,31 +232,18 @@ export async function checkCoachBackendStatus(): Promise<CoachBackendStatus> {
     });
 
     if (!res.ok) {
-      return {
-        available: false,
-        requiresConfig: true,
-        model: 'gemini-3.8-flash',
-        costProtection: {
-          maxMonthlyRequests: MAX_MONTHLY_QUOTA,
-          maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
-          maxMessageLength: 500,
-        },
-      };
+      return unavailableResponse;
     }
 
     return (await res.json()) as CoachBackendStatus;
   } catch {
-    return {
-      available: false,
-      requiresConfig: true,
-      model: 'gemini-3.8-flash',
-      costProtection: {
-        maxMonthlyRequests: MAX_MONTHLY_QUOTA,
-        maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
-        maxMessageLength: 500,
-      },
-    };
+    return unavailableResponse;
   }
+}
+
+export interface SendCoachChatOptions {
+  authToken?: string | null;
+  apiConfigOptions?: ResolveApiUrlOptions;
 }
 
 /**
@@ -238,8 +252,14 @@ export async function checkCoachBackendStatus(): Promise<CoachBackendStatus> {
 export async function sendCoachChatMessage(
   message: string,
   history: Array<{ role: 'user' | 'model'; text: string }>,
-  financialSummary: SafeFinancialSummary
+  financialSummary: SafeFinancialSummary,
+  options?: ResolveApiUrlOptions | SendCoachChatOptions
 ): Promise<CoachChatResponsePayload> {
+  const resolvedOpts: SendCoachChatOptions =
+    options && ('apiConfigOptions' in options || 'authToken' in options)
+      ? (options as SendCoachChatOptions)
+      : { apiConfigOptions: options as ResolveApiUrlOptions | undefined };
+
   // 1. Client-side Cost Protection & Throttle Check
   const localUsage = getCoachLocalUsage();
   if (localUsage.recentTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
@@ -262,39 +282,74 @@ export async function sendCoachChatMessage(
     };
   }
 
-  // 2. Prepare payload & headers
+  // 2. Resolve backend API endpoint (enforces explicit HTTPS VITE_API_BASE_URL on Android)
+  let targetUrl: string;
+  try {
+    targetUrl = resolveApiUrl('/api/coach/chat', resolvedOpts.apiConfigOptions);
+  } catch (err) {
+    if (err instanceof ApiConfigurationError) {
+      return {
+        success: false,
+        error: 'configuration_required',
+        message: err.message,
+      };
+    }
+    throw err;
+  }
+
+  // 3. Prepare payload & headers (Firebase ID token in Authorization Bearer, Play entitlement token in body)
   const deviceId = getOrCreateDeviceId();
   const userTier = getCurrentUserPlanTier();
-  const token = getStoredEntitlementToken() || '';
+  const entitlementToken = getStoredEntitlementToken() || '';
+  const authToken =
+    resolvedOpts.authToken !== undefined
+      ? resolvedOpts.authToken
+      : coachAuthTokenProvider
+      ? await coachAuthTokenProvider()
+      : null;
 
   const payload: CoachChatRequestPayload = {
     message,
     history,
     financialSummary,
     deviceId,
-    entitlementToken: token || undefined,
+    entitlementToken: entitlementToken || undefined,
   };
 
   try {
-    const response = await fetch('/api/coach/chat', {
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-ExpenseFlow-Entitlement-Tier': userTier,
         'X-Client-Device-ID': deviceId,
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
       },
       body: JSON.stringify(payload),
     });
 
-    const data = (await response.json()) as CoachChatResponsePayload;
+    let data: CoachChatResponsePayload;
+    try {
+      data = (await response.json()) as CoachChatResponsePayload;
+    } catch {
+      return {
+        success: false,
+        error:
+          response.status === 401
+            ? 'unauthorized'
+            : response.status === 503
+            ? 'configuration_required'
+            : 'server_error',
+        message: `AI Coach service returned an unreadable response (HTTP ${response.status}).`,
+      };
+    }
 
     if (response.ok && data.success) {
       recordCoachLocalRequest();
     }
 
     return data;
-  } catch (err) {
+  } catch {
     return {
       success: false,
       error: 'server_error',

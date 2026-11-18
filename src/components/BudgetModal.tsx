@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Target, AlertCircle, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { CurrencyCode, SUPPORTED_CURRENCIES } from '../types/expense';
 import { StorageReadStatus } from '../utils/storage';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface BudgetModalProps {
   isOpen: boolean;
@@ -26,6 +27,10 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   const [budgetInput, setBudgetInput] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const budgetInputRef = useRef<HTMLInputElement>(null);
+
+  useModalBackHandler(isOpen, onClose);
 
   const currInfo = SUPPORTED_CURRENCIES.find((c) => c.code === currency);
   const symbol = currInfo?.symbol || '$';
@@ -35,6 +40,10 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
       setBudgetInput(currentBudget > 0 ? currentBudget.toString() : '2500');
       setError('');
       setSaveError(null);
+      setIsSubmitting(false);
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        requestAnimationFrame(() => budgetInputRef.current?.focus());
+      }
     }
   }, [isOpen, currentBudget]);
 
@@ -42,6 +51,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const val = parseFloat(budgetInput.trim());
 
     if (!budgetInput.trim()) {
@@ -64,8 +74,11 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
       return;
     }
 
+    setIsSubmitting(true);
     const cleanVal = Math.round(val * 100) / 100;
     const success = onSaveBudget(cleanVal);
+    setIsSubmitting(false);
+
     if (!success) {
       setSaveError(
         readStatus === 'error'
@@ -83,34 +96,36 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="budget-modal-title"
+      onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden my-auto"
+        className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden flex flex-col max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0] bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#E2E8F0] bg-slate-50/50 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
               <Target className="w-4 h-4" />
             </div>
-            <h2 id="budget-modal-title" className="text-lg font-bold text-[#142D4E]">
+            <h2 id="budget-modal-title" className="text-base sm:text-lg font-bold text-[#142D4E] truncate">
               Monthly Spending Budget
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             aria-label="Close dialog"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4">
           <p className="text-xs text-[#64748B] leading-relaxed">
             Set your target monthly expense limit in your selected currency ({currency}). Your dashboard and insights calculate real-time remaining budget and progress against this target.
           </p>
@@ -150,24 +165,25 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
                 {symbol}
               </div>
               <input
+                ref={budgetInputRef}
                 id="budget-input"
                 type="number"
                 step="1"
                 min="1"
                 inputMode="decimal"
                 value={budgetInput}
+                onFocus={scrollInputIntoViewOnFocus}
                 onChange={(e) => {
                   setBudgetInput(e.target.value);
                   if (error) setError('');
                   if (saveError) setSaveError(null);
                 }}
                 placeholder="2500"
-                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-4 text-xl font-bold text-[#142D4E] tabular-nums focus:outline-none focus:ring-2 transition-all ${
+                className={`w-full rounded-xl border bg-white py-3 pl-10 pr-4 text-xl font-bold text-[#142D4E] tabular-nums focus:outline-none focus:ring-2 transition-all min-h-[48px] ${
                   error
                     ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                     : 'border-[#E2E8F0] focus:border-teal-600 focus:ring-teal-100'
                 }`}
-                autoFocus
               />
             </div>
             {error && <p className="mt-1.5 text-xs text-red-600 font-medium">{error}</p>}
@@ -178,7 +194,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
             <span className="block text-xs font-medium text-slate-500 mb-2">
               Common monthly budgets:
             </span>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {presetAmounts.map((amount) => (
                 <button
                   key={amount}
@@ -188,7 +204,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
                     if (error) setError('');
                     if (saveError) setSaveError(null);
                   }}
-                  className={`py-1.5 px-2 text-xs font-semibold rounded-lg border transition-all tabular-nums ${
+                  className={`py-2 px-2.5 text-xs font-semibold rounded-xl border transition-all tabular-nums min-h-[44px] cursor-pointer ${
                     budgetInput === amount.toString()
                       ? 'border-teal-600 bg-teal-50 text-teal-800'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
@@ -204,16 +220,17 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2.5 rounded-xl border border-[#E2E8F0] text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors min-h-[44px] cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={readStatus === 'error'}
+              disabled={readStatus === 'error' || isSubmitting}
               className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-xs hover:shadow-sm active:scale-[0.98] transition-all min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
             >
-              Save Budget
+              {isSubmitting ? 'Saving...' : 'Save Budget'}
             </button>
           </div>
         </form>

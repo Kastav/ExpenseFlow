@@ -23,6 +23,7 @@ import {
   Calendar,
   Info,
 } from 'lucide-react';
+import { useModalBackHandler } from '../utils/backNavigation';
 
 interface SavingsChallengesProps {
   transactions: Expense[];
@@ -118,6 +119,8 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
 
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+
+  useModalBackHandler(confirmClearOpen, () => setConfirmClearOpen(false));
 
   // Evaluate dynamic progress from transactions with strict lifecycle rules
   const evaluatedChallenges = useMemo(() => {
@@ -223,13 +226,13 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-teal-900 to-[#142D4E] text-white p-6 rounded-2xl shadow-sm">
-        <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-r from-teal-900 to-[#142D4E] text-white p-4 sm:p-6 rounded-2xl shadow-sm">
+        <div className="space-y-1 min-w-0">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-800/80 text-teal-200 border border-teal-700">
             <Trophy className="w-3.5 h-3.5 text-teal-300" />
-            <span>Habit & Savings Challenges</span>
+            <span>Habit &amp; Savings Challenges</span>
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-white">
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white">
             Build Long-Term Financial Discipline
           </h2>
           <p className="text-xs text-teal-100/80 max-w-xl">
@@ -239,7 +242,7 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
         </div>
 
         {/* Stats summary badge */}
-        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/15 self-start sm:self-auto">
+        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/15 self-start sm:self-auto shrink-0">
           <div className="text-center px-2">
             <span className="block text-xl font-extrabold text-white">{activeCount}</span>
             <span className="text-[10px] text-teal-200 font-semibold uppercase tracking-wider">Active</span>
@@ -254,18 +257,19 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
 
       {/* Filter Tabs & Isolated Management Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-1 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs self-start">
+        <div className="w-full sm:w-auto grid grid-cols-3 sm:inline-flex items-center gap-1 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
           {(
             [
-              { id: 'all', label: 'All Challenges' },
+              { id: 'all', label: 'All' },
               { id: 'active', label: `Active (${activeCount})` },
-              { id: 'completed', label: `Completed (${completedCount})` },
+              { id: 'completed', label: `Won (${completedCount})` },
             ] as const
           ).map((t) => (
             <button
               key={t.id}
+              type="button"
               onClick={() => setFilter(t.id)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[32px] ${
+              className={`px-2.5 sm:px-3 py-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer min-h-[44px] truncate ${
                 filter === t.id
                   ? 'bg-teal-600 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -279,7 +283,7 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
         <button
           type="button"
           onClick={() => setConfirmClearOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/70 border border-rose-200 rounded-xl transition-colors cursor-pointer self-start sm:self-auto"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/70 border border-rose-200 rounded-xl transition-colors cursor-pointer self-start sm:self-auto min-h-[44px]"
           title="Reset or remove challenge data cleanly"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -321,8 +325,8 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
               >
                 <div>
                   {/* Card Top Pill & Badges */}
-                  <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div
                         className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                           isCompleted
@@ -343,35 +347,35 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
                     </div>
 
                     {isCompleted ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                         Target Achieved
                       </span>
                     ) : isExceeded ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300 shrink-0">
                         <ShieldAlert className="w-3 h-3 text-rose-600" />
                         Cap Exceeded
                       </span>
                     ) : isOnTrack ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse" />
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
                         On Track
                       </span>
                     ) : isActive ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse" />
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-300 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
                         In Progress
                       </span>
                     ) : isPaused ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                         Paused
                       </span>
                     ) : isExpired ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
                         Incomplete
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
                         Ready
                       </span>
                     )}
@@ -451,13 +455,13 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
                 </div>
 
                 {/* Actions Toolbar */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
                     {ch.status === 'available' ? (
                       <button
                         type="button"
                         onClick={() => handleStartChallenge(ch.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-2xs transition-all cursor-pointer min-h-[34px]"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-2xs transition-all cursor-pointer min-h-[44px]"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
                         <span>Start Challenge</span>
@@ -467,19 +471,19 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
                         <button
                           type="button"
                           onClick={() => handlePauseResume(ch.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer min-h-[30px]"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer min-h-[44px]"
                         >
-                          {isActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                          {isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                           <span>{isActive ? 'Pause' : 'Resume'}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleResetChallenge(ch.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer min-h-[30px]"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer min-h-[44px]"
                           title="Reset progress to 0"
                         >
-                          <RotateCcw className="w-3 h-3" />
+                          <RotateCcw className="w-3.5 h-3.5" />
                           <span>Reset</span>
                         </button>
                       </>
@@ -501,12 +505,13 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
       {/* Confirmation Modal to Clear Challenge Data */}
       {confirmClearOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
           role="dialog"
           aria-modal="true"
+          onClick={() => setConfirmClearOpen(false)}
         >
           <div
-            className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-6 space-y-4"
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-slate-200 p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -527,14 +532,14 @@ export const SavingsChallenges: React.FC<SavingsChallengesProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmClearOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[38px] cursor-pointer"
+                className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleClearAllChallenges}
-                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs min-h-[38px] cursor-pointer"
+                className="px-4 py-2.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs min-h-[44px] cursor-pointer"
               >
                 Clear Challenge Data
               </button>

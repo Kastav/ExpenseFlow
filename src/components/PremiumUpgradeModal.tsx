@@ -36,16 +36,24 @@ import {
   Loader2,
 } from 'lucide-react';
 
+import { AuthUser, getObfuscatedAccountIdForUser } from '../services/authService';
+import { useModalBackHandler } from '../utils/backNavigation';
+import { useStageAvailability } from '../utils/stageAvailability';
+
 interface PremiumUpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   featureTrigger?: PremiumFeatureId | null;
+  authUser?: AuthUser | null;
+  onRequireAuth?: (contextMessage: string) => void;
 }
 
 export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   isOpen,
   onClose,
   featureTrigger,
+  authUser,
+  onRequireAuth,
 }) => {
   const [cycle, setCycle] = useState<BillingCycle>('annual');
   const [isPurchasing, setIsPurchasing] = useState<boolean>(false);
@@ -62,17 +70,26 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
     getStoredSubscriptionEntitlement()
   );
 
+  const stageAvailability = useStageAvailability(isOpen);
+
+  useModalBackHandler(isOpen, onClose);
+
   useEffect(() => {
     if (isOpen) {
       setStatusMessage(null);
       setEntitlement(getStoredSubscriptionEntitlement());
 
-      fetchPlaySubscriptionProducts().then((res) => {
-        setPlayProducts(res.products);
-        setIsLiveFromPlayStore(res.isLiveFromPlayStore);
-      });
+      if (stageAvailability.purchasesEnabled) {
+        fetchPlaySubscriptionProducts().then((res) => {
+          setPlayProducts(res.products);
+          setIsLiveFromPlayStore(res.isLiveFromPlayStore);
+        });
+      } else {
+        setPlayProducts(DEFAULT_SUBSCRIPTION_DETAILS);
+        setIsLiveFromPlayStore(false);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, authUser, stageAvailability.purchasesEnabled]);
 
   // Handle escape key
   useEffect(() => {
@@ -96,12 +113,34 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
   const handleStartSubscription = async () => {
     if (isPurchasing) return;
+    if (!stageAvailability.purchasesEnabled) {
+      setStatusMessage({
+        type: 'info',
+        text: stageAvailability.billingReason,
+      });
+      return;
+    }
+
+    if (!authUser) {
+      if (onRequireAuth) {
+        onRequireAuth('Sign in or create an ExpenseFlow account before subscribing so your Google Play entitlement is bound securely to your account.');
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: 'Please sign in with your ExpenseFlow account before starting a subscription.',
+        });
+      }
+      return;
+    }
 
     setIsPurchasing(true);
     setStatusMessage(null);
 
     try {
-      const res = await initiateSubscriptionPurchase(selectedProductId);
+      const obfuscatedAccountId = await getObfuscatedAccountIdForUser(authUser.uid);
+      const res = await initiateSubscriptionPurchase(selectedProductId, {
+        obfuscatedAccountId,
+      });
 
       if (res.success) {
         setStatusMessage({
@@ -137,6 +176,25 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
   const handleRestore = async () => {
     if (isRestoring) return;
+    if (!stageAvailability.purchasesEnabled) {
+      setStatusMessage({
+        type: 'info',
+        text: stageAvailability.billingReason,
+      });
+      return;
+    }
+
+    if (!authUser) {
+      if (onRequireAuth) {
+        onRequireAuth('Sign in to your ExpenseFlow account to restore and re-verify your existing Google Play subscription.');
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: 'Please sign in with your ExpenseFlow account to restore purchases.',
+        });
+      }
+      return;
+    }
 
     setIsRestoring(true);
     setStatusMessage(null);
@@ -170,34 +228,39 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="premium-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-hidden animate-in fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Ribbon / Banner */}
-        <div className="bg-gradient-to-r from-[#142D4E] via-[#1E3E66] to-teal-800 text-white p-6 sm:p-7 relative shrink-0">
+        <div className="bg-gradient-to-r from-[#142D4E] via-[#1E3E66] to-teal-800 text-white p-4 sm:p-7 relative shrink-0">
           <button
             type="button"
             onClick={onClose}
             aria-label="Close upgrade dialog"
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
+            className="absolute top-3 right-3 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2 pr-12">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-slate-950 uppercase tracking-wider shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 fill-current" />
               ExpenseFlow Premium
             </span>
             <span className="text-xs text-teal-200 font-medium">
-              {isLiveFromPlayStore ? 'Google Play Connected' : 'Google Play Billing'}
+              {!stageAvailability.purchasesEnabled
+                ? 'Stage 2 · Coming Later'
+                : isLiveFromPlayStore
+                ? 'Google Play Connected'
+                : 'Google Play Billing'}
             </span>
           </div>
 
-          <h2 id="premium-modal-title" className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          <h2 id="premium-modal-title" className="text-xl sm:text-3xl font-extrabold tracking-tight pr-8">
             Unlock Advanced AI &amp; Cloud Power
           </h2>
           <p className="text-xs sm:text-sm text-teal-100/90 mt-1.5 max-w-md leading-relaxed">
@@ -216,7 +279,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-5 sm:space-y-6 flex-1">
           {/* Active Subscription State Banner if user is currently Premium */}
           {isCurrentlyPremium && (
             <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-start gap-3">
@@ -243,11 +306,11 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
           )}
 
           {/* Transparent Pricing Switcher */}
-          <div className="bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80 flex items-center justify-center gap-1.5 max-w-sm mx-auto">
+          <div className="bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80 grid grid-cols-1 min-[360px]:grid-cols-2 w-full sm:max-w-md mx-auto gap-1.5">
             <button
               type="button"
               onClick={() => setCycle('monthly')}
-              className={`flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+              className={`min-h-[44px] py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center ${
                 cycle === 'monthly'
                   ? 'bg-white text-[#142D4E] shadow-xs border border-slate-200/60'
                   : 'text-slate-600 hover:text-slate-900'
@@ -258,15 +321,15 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
             <button
               type="button"
               onClick={() => setCycle('annual')}
-              className={`flex-1 py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer relative ${
+              className={`min-h-[44px] py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex flex-wrap items-center justify-center gap-1 ${
                 cycle === 'annual'
                   ? 'bg-teal-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Annual ({playProducts[PLAY_PRODUCT_IDS.ANNUAL]?.formattedPrice || '$109.99'})
+              <span>Annual ({playProducts[PLAY_PRODUCT_IDS.ANNUAL]?.formattedPrice || '$109.99'})</span>
               <span
-                className={`ml-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
                   cycle === 'annual' ? 'bg-amber-400 text-slate-950' : 'bg-emerald-100 text-emerald-800'
                 }`}
               >
@@ -310,16 +373,16 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
             <div className="rounded-2xl border border-slate-200 overflow-hidden text-xs">
               {/* Table Header */}
-              <div className="grid grid-cols-12 bg-slate-100/80 p-3 font-bold text-slate-700 border-b border-slate-200">
+              <div className="grid grid-cols-12 bg-slate-100/80 p-2.5 sm:p-3 font-bold text-slate-700 border-b border-slate-200 gap-1">
                 <span className="col-span-6 sm:col-span-7">Capability</span>
-                <span className="col-span-3 sm:col-span-2 text-center text-slate-600">Free ($0)</span>
+                <span className="col-span-3 sm:col-span-2 text-center text-slate-600">Free</span>
                 <span className="col-span-3 text-center text-teal-700 font-extrabold">Premium</span>
               </div>
 
               {/* Rows */}
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-12 p-3 items-center">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800">
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800 min-w-0">
                     Local Expense Tracking
                     <span className="block text-[10px] text-slate-400 font-normal">Offline-ready on device</span>
                   </div>
@@ -331,8 +394,8 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 p-3 items-center bg-slate-50/50">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800">
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-slate-50/50 gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800 min-w-0">
                     Monthly Budget &amp; Daily Burn Rate
                     <span className="block text-[10px] text-slate-400 font-normal">Deterministic allowance math</span>
                   </div>
@@ -344,8 +407,8 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 p-3 items-center">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800">
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-slate-800 min-w-0">
                     Universal CSV Export
                     <span className="block text-[10px] text-slate-400 font-normal">Download full ledger anytime</span>
                   </div>
@@ -357,38 +420,38 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 p-3 items-center bg-teal-50/20">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E]">
-                    AI Personal Spending Coach (Text)
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-teal-50/20 gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E] min-w-0">
+                    AI Personal Spending Coach
                     <span className="block text-[10px] text-slate-500 font-normal">Gemini reasoning &amp; velocity tips</span>
                   </div>
                   <div className="col-span-3 sm:col-span-2 text-center text-slate-300 font-bold">—</div>
-                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-0.5 text-[11px]">
+                    <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
                     <span>Included</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 p-3 items-center bg-teal-50/20">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E]">
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-teal-50/20 gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E] min-w-0">
                     AI Financial Recommendations
                     <span className="block text-[10px] text-slate-500 font-normal">Anomaly detection &amp; optimizations</span>
                   </div>
                   <div className="col-span-3 sm:col-span-2 text-center text-slate-300 font-bold">—</div>
-                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-0.5 text-[11px]">
+                    <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
                     <span>Included</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-12 p-3 items-center bg-teal-50/20">
-                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E]">
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-teal-50/20 gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E] min-w-0">
                     Multi-Device Cloud Sync &amp; Backup
                     <span className="block text-[10px] text-slate-500 font-normal">Encrypted off-device backup</span>
                   </div>
                   <div className="col-span-3 sm:col-span-2 text-center text-slate-300 font-bold">—</div>
-                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-1">
-                    <Cloud className="w-3.5 h-3.5 text-teal-600" />
+                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-0.5 text-[11px]">
+                    <Cloud className="w-3 h-3 text-teal-600 shrink-0" />
                     <span>Included</span>
                   </div>
                 </div>
@@ -402,34 +465,69 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-teal-700 shrink-0" />
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Subscribe with Google Play
+                  {stageAvailability.purchasesEnabled ? 'Subscribe with Google Play' : 'Stage 1 Offline-First Core Build'}
                 </h4>
               </div>
               <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md">
-                {currentProduct.formattedPrice} {cycle === 'monthly' ? '/mo' : '/yr'}
+                {stageAvailability.purchasesEnabled
+                  ? `${currentProduct.formattedPrice} ${cycle === 'monthly' ? '/mo' : '/yr'}`
+                  : 'Stage 2 Planned'}
               </span>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Google Play In-App Billing handles payment security, receipt validation, and automatic renewal with one-tap cancellation anytime.
-            </p>
+            {!stageAvailability.purchasesEnabled ? (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1.5">
+                <p className="font-bold">Premium Purchases Not Active in Stage 1</p>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  All core ExpenseFlow features—local expense logging, monthly budgets, daily burn rate, affordability planner, insights charts, voice entry, and CSV export—are <strong>100% free right now</strong>. In-app Google Play subscriptions, AI Spending Coach, and cloud sync will activate later in Stage 2.
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Google Play In-App Billing handles payment security, receipt validation, and automatic renewal with one-tap cancellation anytime.
+                </p>
+
+                {!authUser && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                    <span>Sign in with your ExpenseFlow account to link your subscription.</span>
+                    {onRequireAuth && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onRequireAuth('Sign in or create an ExpenseFlow account so your Google Play subscription stays linked to your account.')
+                        }
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-[#142D4E] hover:bg-[#1E3E66] text-white font-bold text-xs shrink-0 cursor-pointer"
+                      >
+                        Sign In
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
             <button
               type="button"
-              disabled={isPurchasing}
+              disabled={!stageAvailability.purchasesEnabled || isPurchasing}
               onClick={handleStartSubscription}
-              className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full min-h-[48px] py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isPurchasing ? (
+              {!stageAvailability.purchasesEnabled ? (
+                <>
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Unavailable in Stage 1 — Coming Later</span>
+                </>
+              ) : isPurchasing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Connecting to Google Play...</span>
                 </>
               ) : (
                 <>
-                  <Shield className="w-4 h-4" />
-                  <span>Subscribe to {currentProduct.title || 'ExpenseFlow Premium'}</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-auto" />
+                  <Shield className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Subscribe to {currentProduct.title || 'ExpenseFlow Premium'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-auto shrink-0" />
                 </>
               )}
             </button>
@@ -458,7 +556,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:pb-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shrink-0">
           <div className="text-[11px] text-slate-500">
             Current Tier:{' '}
             <strong className="text-slate-800 uppercase font-bold">
@@ -466,12 +564,12 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
             </strong>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <button
               type="button"
-              disabled={isRestoring}
+              disabled={!stageAvailability.purchasesEnabled || isRestoring}
               onClick={handleRestore}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
+              className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isRestoring ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -484,7 +582,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition-colors cursor-pointer"
+              className="min-h-[44px] px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition-colors cursor-pointer"
             >
               Close
             </button>

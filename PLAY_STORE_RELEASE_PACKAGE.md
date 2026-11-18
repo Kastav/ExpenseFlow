@@ -1,145 +1,98 @@
-# ExpenseFlow — Google Play Store Complete Release Package
+# ExpenseFlow — Google Play Store Stage 1 Release Package
 
-This document contains every exact copy, metadata attribute, questionnaire response, and configuration step required to submit and launch **ExpenseFlow** (`com.expenseflow.app`) on the Google Play Store.
+Exact Stage 1 store listing copy, Data Safety declarations, App Content responses, and GitHub Pages compliance URLs for **ExpenseFlow** (`com.expenseflow.app`).
 
 ---
 
-## 1. App Listing Metadata
+## 1. Stage 1 App Listing Metadata (Offline-First Free Core)
 
 ### App Name (Title)
 ```text
 ExpenseFlow: Budget & Tracker
 ```
-*(29 / 30 characters maximum)*
+*(29 / 30 characters)*
 
 ### Short Description
 ```text
-Smart personal expense tracking, daily burn rate budgets & AI Spending Coach.
+Fast, private offline expense tracker with daily burn rate & purchase planner.
 ```
-*(77 / 80 characters maximum)*
+*(77 / 80 characters)*
 
 ### Full Description
 ```text
-Take control of your personal finances with ExpenseFlow — the modern, private, and fast personal expense tracker designed to help you build healthy spending habits and reach your financial goals.
+Take control of your personal finances with ExpenseFlow — the modern, private, offline-first expense tracker built to help you manage everyday spending without complexity.
 
-Whether you want to track daily coffee runs, plan upcoming major purchases, or understand your monthly spending burn rate, ExpenseFlow gives you complete financial clarity with zero unnecessary complexity.
+★ 100% PRIVATE & OFFLINE-FIRST LOCAL STORAGE
+Your expense records, monthly budgets, purchase plans, challenges, and regional preferences stay locally on your device. No account is required to track expenses, and ExpenseFlow gives you instant universal CSV exports ready for Excel and Google Sheets.
 
-★ 100% PRIVATE & OFFLINE-READY LOCAL STORAGE
-Your financial records are stored securely on your device. ExpenseFlow gives you complete ownership of your data with fast local logging and universal CSV export ready for Excel and Google Sheets.
+★ DAILY BURN RATE & BUDGET VELOCITY
+Most budget tools only tell you after you overspend. ExpenseFlow computes your real-time Recommended Daily Allowance and spending velocity automatically so you always know what you can safely spend today.
 
-★ DAILY BURNING RATE & BUDGET VELOCITY
-Most budget apps only tell you when it's too late. ExpenseFlow's dynamic burn rate calculates your exact Recommended Daily Allowance, adjusting automatically every day so you always know what you can safely spend.
-
-★ EXPENSEFLOW PREMIUM — AI PERSONAL SPENDING COACH
-Unlock next-generation financial reasoning powered by Google Gemini 3.8 Flash:
-• Conversational spending velocity guidance
-• Actionable recommendations to trim discretionary leaks
-• Real-time affordability analysis before making major purchases
-• Privacy-first data minimization: individual transactions are never shared; only high-level summary metrics are analyzed.
+★ PURCHASE AFFORDABILITY PLANNER & CHALLENGES
+• Test major purchases against upcoming bills and buffers before buying.
+• Track No-Spend Day goals and category spending caps.
+• Supports 150+ worldwide ISO 4217 currencies and country formatting.
 
 ★ QUICK VOICE EXPENSE ENTRY
-On the go? Simply tap the microphone and speak naturally (e.g. "Dinner out $45 on credit card"). ExpenseFlow parses amounts, categories, and payment methods instantly.
+Tap the microphone button and speak naturally (e.g., "Dinner out 45 on card") to pre-fill amount, category, and payment method via on-device/WebView speech recognition.
 
-★ HABIT CHALLENGES & PURCHASE PLANNER
-• No-Spend Day tracking and category spending caps.
-• Purchase Affordability Planner to test major expenses against your cash buffer before buying.
-• Support for 150+ worldwide ISO 4217 currencies and regional formatting.
-
-★ SUBSCRIPTION PRICING
-• ExpenseFlow Free: 100% Free Forever with unlimited local expense tracking, monthly budgets, velocity metrics, and CSV export.
-• ExpenseFlow Premium Monthly: $14.99 / month
-• ExpenseFlow Premium Annual: $109.99 / year (Save 38%)
-
-Manage your subscriptions anytime in your Google Play account settings.
+★ OPTIONAL ACCOUNT & FULL DATA CONTROL
+• Use ExpenseFlow completely offline with zero account required.
+• Optional Firebase Email/Password sign-in with permanent in-app deletion (More > ExpenseFlow Account > Manage / Delete) and external web deletion.
 ```
-*(1,980 / 4,000 characters maximum)*
 
 ---
 
-## 2. Store Categorization & Tags
+## 2. Store Categorization & Developer Contact
 
 - **Application Type:** App
 - **Primary Category:** Finance
 - **Tags:** Personal Finance, Budget Tracker, Expense Manager, Money Management, Spending Tracker
-- **Store Contact Email:** `support@expenseflow.app`
+- **Store Contact Email:** Enter your own real, monitored developer contact email in Google Play Console (**Store settings**). *(No fabricated email address is hardcoded in the app.)*
 
 ---
 
-## 3. Data Safety Form Declaration
+## 3. Stage 1 Data Safety Form Declaration (Aligned Strictly to Active Stage 1 Code)
 
-Complete the Google Play Console **Data Safety** section with these answers:
+> Fill these answers for Stage 1 Internal Testing. Update Data Safety before activating Stage 2 Cloud Sync / AI Coach / Play Billing.
 
-| Question | Answer | Rationale |
+| Play Console Data Safety Field | Stage 1 Selection | Source-Verified Code Basis |
 | :--- | :--- | :--- |
-| **Does your app collect or share any user data?** | **Yes** | App shares aggregated financial summary metrics with Gemini proxy only when the user opens the optional AI Coach. |
-| **Is all user data encrypted in transit?** | **Yes** | All network traffic uses HTTPS (TLS 1.3). |
-| **Can users request their data be deleted?** | **Yes** | Transactions are stored locally and can be deleted anytime in app or by clearing device data. |
-| **Financial Info: Other financial info** | **Collected (Aggregated Only)** | Month-to-date total spend, budget limit, and category percentages are processed ephemerally for the AI Coach. Not linked to user identity; not shared with brokers. |
-| **Audio Files: Voice recordings** | **Not Collected** | Microphone is used locally for speech-to-text dictation only. Audio is never stored or uploaded. |
-| **App Performance & Crash Logs** | **Collected** | Firebase Analytics (standard anonymous app open and section view events). |
+| **Does your app collect or share user data?** | **Yes** *(Optional Account Email/UID & Optional Usage Analytics)* | Firebase Authentication (`expenseflow-ad899`) if user creates an optional account, plus opt-out Firebase Analytics (`src/services/analytics.ts`). |
+| **Is all collected user data encrypted in transit?** | **Yes** | Firebase Authentication and Firebase Analytics SDKs communicate exclusively over HTTPS / TLS. |
+| **Do you provide a way for users to request that their data is deleted?** | **Yes** | In-app account deletion (`More > ExpenseFlow Account > Manage / Delete > Delete ExpenseFlow Account` with inline re-auth & optional local wipe) AND standalone web deletion page (`delete-account.html`). |
+| **Personal Info: Email address & User IDs** | **Collected (Optional — App Functionality / Account Management)** | Collected by Firebase Authentication only when the user voluntarily registers or signs in. Never sold or used for advertising. |
+| **Financial Info (Expenses, Budgets, Purchase History)** | **Not Collected off-device in Stage 1** | Stored strictly locally in device storage (`localStorage`); Stage 1 billing/AI Coach/cloud sync are disabled and no Firestore database exists. |
+| **App Activity / Analytics** | **Optional (User Opt-out Toggle Provided)** | `analytics.ts` logs strictly non-financial allowlisted event names (`page_view`, `app_open`, `expense_added`, etc.—never amounts or notes). Toggleable anytime in `More > Data Storage & Privacy`. |
+| **Audio files** | **Not Collected** | `RECORD_AUDIO` drives live WebView speech-to-text transcription; audio is never stored on disk or uploaded. |
 
 ---
 
-## 4. App Content Declarations
+## 4. App Content & Policy Declarations (GitHub Pages Public URLs)
 
-1. **Privacy Policy URL:**
-   `https://expenseflow-2984.ai.studio/privacy.html` (or your custom domain)
-2. **Ads Declaration:**
-   Select: **"No, my app does not contain ads."**
-3. **App Access:**
-   Select: **"All functionality is available without restrictions."** (All core budgeting features are free; Premium requires subscription).
-4. **Target Audience & Content:**
-   - Target age: **18 and above**.
-   - Not directed to children.
-5. **Content Rating (IARC Questionnaire):**
-   - Category: Utility / Productivity / Finance.
-   - Violence, sexual content, profanity: **None**.
-   - Result: **PEGI 3 / ESRB Everyone / General**.
-6. **Financial Features Declaration:**
-   - App is a **personal budget planner**. It is NOT a money lending service, cryptocurrency exchange, or banking institution.
+1. **Privacy Policy URL (Permanent HTTPS Host via GitHub Pages `/docs`):**
+   - `https://<your-github-username>.github.io/<your-repo-name>/privacy.html`
+   - *Never submit temporary `ais-dev-*.run.app` or `ais-pre-*.run.app` preview URLs.*
+2. **Account Deletion URL (External Deletion Flow Requirement):**
+   - `https://<your-github-username>.github.io/<your-repo-name>/delete-account.html`
+   - Independently signs in against Firebase Identity Toolkit (`expenseflow-ad899`) and permanently deletes the Firebase Auth account in any browser.
+3. **Ads Declaration:** **No, my app does not contain ads.**
+4. **App Access:** Core expense tracking is fully accessible with **zero login**. Optionally provide one test Firebase email/password account credential if Play reviewers wish to verify sign-in and account deletion inside the app.
+5. **Target Audience & Content:** **18 and above** (Personal finance management utility; not directed at children).
+6. **Content Rating (IARC):** Finance / Utility; Violence, sexual content, profanity: **None**.
+7. **Financial Features Declaration:** Personal expense ledger and budgeting calculator only — NOT a bank, lender, payment processor, investment broker, or crypto wallet.
 
 ---
 
-## 5. Google Play Console Subscription Products Setup
+## 5. Stage 1 Internal Testing Release Notes (`1.0 (1)`)
 
-Navigate to **Monetize > Products > Subscriptions** in Google Play Console:
-
-### Subscription 1: Monthly
-- **Product ID:** `expenseflow_premium_monthly`
-- **Name:** ExpenseFlow Premium Monthly
-- **Base Plan ID:** `monthly-standard`
-- **Billing Period:** 1 Month
-- **Renewal:** Auto-renewing
-- **Default Price:** $14.99 USD (Play Console automatically calculates localized exchange rates for worldwide territories).
-
-### Subscription 2: Annual
-- **Product ID:** `expenseflow_premium_annual`
-- **Name:** ExpenseFlow Premium Annual
-- **Base Plan ID:** `annual-standard`
-- **Billing Period:** 1 Year
-- **Renewal:** Auto-renewing
-- **Default Price:** $109.99 USD (Play Console automatically calculates localized exchange rates).
-
----
-
-## 6. Release Track Notes
-
-### Internal / Closed Testing (Track 1)
 ```text
-ExpenseFlow v1.0.0 (Build 1)
-• Mobile-first personal expense tracking with light-mode interface.
-• Daily spending velocity and recommended allowance calculations.
-• Purchase Affordability Planner and Savings Challenges.
-• Voice expense dictation.
-• AI Personal Spending Coach with Gemini 3.8 Flash.
-• Google Play In-App Billing integration.
-```
-
-### Production Release (Track 2)
-```text
-Welcome to ExpenseFlow 1.0!
-• Track expenses with zero friction and total local privacy.
-• Monitor your daily burning rate and know your exact safe daily allowance.
-• Try the AI Personal Spending Coach for smart budget recommendations.
-• Universal CSV export for spreadsheets.
+ExpenseFlow v1.0 (Build 1 — Stage 1 Offline-First Core)
+• Android-first offline expense tracking with local storage preservation
+• Dynamic daily burn rate, spending velocity, and Recommended Daily Allowance
+• Purchase Affordability Planner and Savings Challenges
+• Quick voice expense entry and universal RFC 4180 CSV export
+• 150+ worldwide currencies and country formatting
+• Optional Firebase account management with in-app and web deletion
+• Stage 2 cloud features (AI Coach, Cloud Sync, Play Billing) disabled in Stage 1
 ```

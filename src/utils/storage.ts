@@ -995,3 +995,34 @@ export function clearStoredChallenges(): boolean {
   }
 }
 
+/**
+ * Explicitly erases all locally saved ExpenseFlow financial records and preferences
+ * on this device ONLY when requested directly by the user (e.g., opt-in checkbox
+ * during account deletion). Preserves keys by default unless explicitly called.
+ */
+export function clearLocalFinancialData(): boolean {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return false;
+    }
+    const keysToRemove = [
+      TRANSACTIONS_KEY,
+      BUDGET_KEY,
+      CURRENCY_KEY,
+      LEGACY_CURRENCY_KEY,
+      PLAN_KEY,
+      COUNTRY_KEY,
+      ONBOARDING_COMPLETED_KEY,
+      CHALLENGES_KEY,
+    ];
+    for (const key of keysToRemove) {
+      window.localStorage.removeItem(key);
+    }
+    return true;
+  } catch (err) {
+    console.error('ExpenseFlow: Error clearing local financial data:', err);
+    return false;
+  }
+}
+
+

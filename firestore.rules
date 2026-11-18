@@ -20,5 +20,23 @@ service cloud.firestore {
     match /premium_waitlist/{waitlistId} {
       allow read, write: if false;
     }
+
+    /**
+     * Backend-Only Billing Entitlements, Token Index, RTDN Ledger & AI Quotas:
+     * Accessed strictly via Firebase Admin SDK on the Express backend.
+     * Clients NEVER read or write billing or quota documents directly.
+     */
+    match /billing_entitlements/{tokenHash} {
+      allow read, write: if false;
+    }
+    match /billing_token_index/{tokenId} {
+      allow read, write: if false;
+    }
+    match /rtdn_notifications/{messageId} {
+      allow read, write: if false;
+    }
+    match /ai_usage_quotas/{subjectKey} {
+      allow read, write: if false;
+    }
   }
 }

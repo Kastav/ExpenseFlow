@@ -13,6 +13,7 @@ import {
   FileQuestion,
   Plus,
 } from 'lucide-react';
+import { scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface TransactionHistoryProps {
   transactions: Expense[];
@@ -132,20 +133,21 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   };
 
   return (
-    <div className="space-y-5 pb-20 md:pb-8">
+    <div className="space-y-5">
       {/* Title & Stats */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#142D4E]">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#142D4E]">
             Transaction History
           </h1>
-          <p className="text-sm text-[#64748B] mt-0.5">
-            {transactions.length} total recorded · {filteredAndSortedTransactions.length} shown · Currency: {currency}
+          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+            {transactions.length} total · {filteredAndSortedTransactions.length} shown · {currency}
           </p>
         </div>
         <button
+          type="button"
           onClick={onOpenAddExpense}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto min-h-[40px] cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Add Expense</span>
@@ -161,15 +163,17 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
           </div>
           <input
             type="text"
-            placeholder="Search by category, payment method, or notes..."
+            placeholder="Search category, payment, or notes..."
             value={searchQuery}
+            onFocus={scrollInputIntoViewOnFocus}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-9 text-sm text-[#142D4E] placeholder:text-slate-400 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-11 text-sm text-[#142D4E] placeholder:text-slate-400 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all min-h-[44px]"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+              className="absolute inset-y-0 right-0 flex items-center justify-center w-11 text-slate-400 hover:text-slate-600 cursor-pointer"
               aria-label="Clear search"
             >
               <X className="w-4 h-4" />
@@ -188,7 +192,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[38px]"
+                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[44px]"
               >
                 <option value="all">All Categories</option>
                 {CATEGORIES.map((c) => (
@@ -212,7 +216,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value as DateRangeOption)}
-                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[38px]"
+                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[44px]"
               >
                 <option value="all">All Time</option>
                 <option value="this-month">This Month</option>
@@ -236,7 +240,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[38px]"
+                className="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-3 pr-8 text-xs font-medium text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all cursor-pointer min-h-[44px]"
               >
                 <option value="date-desc">Date (Newest First)</option>
                 <option value="date-asc">Date (Oldest First)</option>
@@ -260,8 +264,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <input
                 type="date"
                 value={customStartDate}
+                onFocus={scrollInputIntoViewOnFocus}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2 px-3 text-xs text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 px-3 text-xs text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 min-h-[44px]"
               />
             </div>
             <div>
@@ -271,8 +276,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
               <input
                 type="date"
                 value={customEndDate}
+                onFocus={scrollInputIntoViewOnFocus}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2 px-3 text-xs text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 px-3 text-xs text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 min-h-[44px]"
               />
             </div>
           </div>
@@ -291,8 +297,9 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 
           {hasActiveFilters && (
             <button
+              type="button"
               onClick={handleResetFilters}
-              className="text-xs font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-2 transition-colors cursor-pointer"
+              className="text-xs font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-2 transition-colors min-h-[44px] inline-flex items-center px-1 cursor-pointer"
             >
               Reset Filters
             </button>
@@ -319,16 +326,18 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             <div className="mt-4">
               {transactions.length === 0 ? (
                 <button
+                  type="button"
                   onClick={onOpenAddExpense}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-colors min-h-[44px] cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add First Expense</span>
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors min-h-[44px] cursor-pointer"
                 >
                   <span>Reset All Filters</span>
                 </button>
@@ -338,51 +347,74 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredAndSortedTransactions.map((tx) => {
+              const noteText = tx.notes || tx.description;
               return (
                 <div
                   key={tx.id}
-                  className="p-4 sm:px-6 hover:bg-slate-50/70 transition-colors flex items-center justify-between gap-3"
+                  className="p-3.5 sm:px-6 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3"
                 >
-                  {/* Transaction Details */}
+                  {/* Transaction Details (Mobile: Top Line Category + Amount, Bottom Line Metadata + Actions) */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-baseline justify-between gap-2">
                       <p className="text-sm font-bold text-[#142D4E] truncate">
                         {tx.category}
                       </p>
+                      <span className="sm:hidden text-sm font-extrabold text-[#142D4E] tabular-nums shrink-0">
+                        {formatCurrency(tx.amount, currency)}
+                      </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#64748B] mt-0.5">
-                      <span>{formatDate(tx.date)}</span>
-                      {tx.paymentMethod && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-semibold text-slate-700">{tx.paymentMethod}</span>
-                        </>
-                      )}
-                      {tx.notes && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="italic truncate max-w-[140px] sm:max-w-xs">{tx.notes}</span>
-                        </>
-                      )}
-                      {!tx.notes && tx.description && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="italic truncate max-w-[140px] sm:max-w-xs">{tx.description}</span>
-                        </>
-                      )}
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[#64748B] min-w-0">
+                        <span>{formatDate(tx.date)}</span>
+                        {tx.paymentMethod && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="font-semibold text-slate-700">{tx.paymentMethod}</span>
+                          </>
+                        )}
+                        {noteText && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="italic truncate max-w-[160px] sm:max-w-xs">{noteText}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Mobile Inline Action Buttons */}
+                      <div className="flex sm:hidden items-center gap-0.5 shrink-0 -my-1.5 -mr-2">
+                        <button
+                          type="button"
+                          onClick={() => onEditExpense(tx)}
+                          className="text-slate-400 hover:text-teal-600 active:bg-teal-50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                          title="Edit expense"
+                          aria-label={`Edit ${tx.category} expense on ${tx.date} for ${formatCurrency(tx.amount, currency)}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRequestDeleteExpense(tx)}
+                          className="text-slate-400 hover:text-red-600 active:bg-red-50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                          title="Delete expense"
+                          aria-label={`Delete ${tx.category} expense on ${tx.date} for ${formatCurrency(tx.amount, currency)}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Amount & Actions */}
-                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                  {/* Desktop Amount & Actions */}
+                  <div className="hidden sm:flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-base font-extrabold text-[#142D4E] tabular-nums">
                         {formatCurrency(tx.amount, currency)}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 ml-1 sm:ml-2">
+                    <div className="flex items-center gap-1 ml-1">
                       <button
+                        type="button"
                         onClick={() => onEditExpense(tx)}
                         className="p-2.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                         title="Edit expense"
@@ -391,6 +423,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => onRequestDeleteExpense(tx)}
                         className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                         title="Delete expense"

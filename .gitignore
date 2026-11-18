@@ -10,8 +10,14 @@ coverage/
 *.key
 *.keystore
 *.jks
+*.aab
+*.apk
 keystore.properties
 release-keystore.properties
 *service-account*.json
 *credentials*.json
 service-account.json
+.data/
+android/app/build/
+android/.gradle/
+android/app/release.keystore

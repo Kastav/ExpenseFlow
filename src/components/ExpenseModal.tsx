@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Expense, ExpenseCategory, CATEGORIES, PAYMENT_METHODS, CurrencyCode, SUPPORTED_CURRENCIES } from '../types/expense';
 import { getTodayDateString, formatDate } from '../utils/formatters';
 import { X, Calendar, Tag, FileText, CreditCard, AlertCircle, Sparkles, ChevronDown } from 'lucide-react';
@@ -7,6 +7,7 @@ import { ParsedVoiceExpense } from '../utils/voiceExpenseParser';
 import { CategorySelectorModal, getCategoryIcon } from './CategorySelectorModal';
 import { PaymentMethodSelectorModal, getPaymentMethodIcon } from './PaymentMethodSelectorModal';
 import { DatePickerModal } from './DatePickerModal';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -41,6 +42,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState<boolean>(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
+  const amountInputRef = useRef<HTMLInputElement>(null);
+
+  useModalBackHandler(isOpen, onClose);
 
   const handleApplyVoiceExpense = (parsed: ParsedVoiceExpense) => {
     if (parsed.amount !== null) {
@@ -78,6 +82,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     setErrors({});
     setSaveError(null);
     setIsSubmitting(false);
+    if (isOpen && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      requestAnimationFrame(() => amountInputRef.current?.focus());
+    }
   }, [initialExpense, isOpen]);
 
   // Handle ESC key press
@@ -159,21 +166,22 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
+      onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden my-auto"
+        className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden flex flex-col max-h-[92dvh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0] bg-slate-50/50">
-          <h2 id="modal-title" className="text-lg font-bold text-[#142D4E]">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#E2E8F0] bg-slate-50/50 shrink-0">
+          <h2 id="modal-title" className="text-base sm:text-lg font-bold text-[#142D4E] min-w-0 truncate">
             {initialExpense ? 'Edit Expense' : 'Add New Expense'}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {!initialExpense && (
               <VoiceExpenseControl
                 currentCurrency={currency}
@@ -188,8 +196,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               />
             )}
             <button
+              type="button"
               onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               aria-label="Close dialog"
             >
               <X className="w-5 h-5" />
@@ -198,23 +207,23 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4">
           {voiceAppliedNote && (
             <div
               role="status"
-              className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-900 flex items-center justify-between gap-2 animate-in fade-in"
+              className="px-3 py-2 rounded-xl bg-teal-50 border border-teal-200 text-xs font-semibold text-teal-900 flex items-center justify-between gap-2 animate-in fade-in"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
                 <span>{voiceAppliedNote}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setVoiceAppliedNote(null)}
-                className="text-teal-700 hover:text-teal-900 p-1 cursor-pointer"
+                className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center text-teal-700 hover:text-teal-900 cursor-pointer shrink-0"
                 aria-label="Dismiss voice note"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -238,6 +247,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 {selectedCurrencyInfo?.symbol || '$'}
               </div>
               <input
+                ref={amountInputRef}
                 id="edit-expense-amount"
                 type="number"
                 step="0.01"
@@ -245,6 +255,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 inputMode="decimal"
                 placeholder="0.00"
                 value={amount}
+                onFocus={scrollInputIntoViewOnFocus}
                 onChange={(e) => {
                   setAmount(e.target.value);
                   if (errors.amount) setErrors((prev) => ({ ...prev, amount: '' }));
@@ -254,7 +265,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                     ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                     : 'border-[#E2E8F0] focus:border-teal-600 focus:ring-teal-100'
                 }`}
-                autoFocus
               />
             </div>
             {errors.amount && (
@@ -320,7 +330,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                         setCategory(catName);
                         if (errors.category) setErrors((prev) => ({ ...prev, category: '' }));
                       }}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all min-h-[32px] cursor-pointer ${
+                      className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all min-h-[38px] sm:min-h-[34px] cursor-pointer ${
                         isSelected
                           ? 'bg-teal-600 text-white shadow-2xs'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/60'
@@ -411,7 +421,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                     key={pm}
                     type="button"
                     onClick={() => setPaymentMethod(isSelected ? '' : pm)}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all min-h-[32px] cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all min-h-[38px] sm:min-h-[34px] cursor-pointer ${
                       isSelected
                         ? 'bg-teal-600 text-white shadow-2xs'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/60'
@@ -438,8 +448,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 rows={2}
                 placeholder="Additional details or notes..."
                 value={notes}
+                onFocus={scrollInputIntoViewOnFocus}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-sm text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all resize-none"
+                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-sm text-[#142D4E] focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100 transition-all resize-none min-h-[64px]"
               />
             </div>
           </div>

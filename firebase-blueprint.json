@@ -58,12 +58,115 @@
         "status",
         "selectedPlan"
       ]
+    },
+    "BillingEntitlement": {
+      "title": "Billing Entitlement",
+      "description": "Server-managed verified subscription entitlement keyed by SHA-256 hash of Google Play purchase token (raw tokens are never stored).",
+      "type": "object",
+      "properties": {
+        "tokenHash": { "type": "string" },
+        "tokenId": { "type": "string" },
+        "userId": { "type": ["string", "null"] },
+        "ownershipStatus": { "type": "string", "enum": ["bound", "unbound"] },
+        "obfuscatedAccountId": { "type": "string" },
+        "productId": { "type": "string", "enum": ["expenseflow_premium_monthly", "expenseflow_premium_annual", ""] },
+        "latestOrderId": { "type": "string" },
+        "subscriptionState": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expired", "pending", "canceled", "revoked", "on_hold", "paused"] },
+        "expiryTimeMillis": { "type": "number" },
+        "autoRenewing": { "type": "boolean" },
+        "cancelAtPeriodEnd": { "type": "boolean" },
+        "acknowledged": { "type": "boolean" },
+        "revoked": { "type": "boolean" },
+        "revokedAt": { "type": "number" },
+        "lastRtdnEventTimeMillis": { "type": "number" },
+        "pendingClaim": { "type": "boolean" },
+        "pendingClaimAt": { "type": "number" },
+        "pendingClaimUserId": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "lastVerifiedAt": { "type": "number" }
+      },
+      "required": [
+        "tokenHash",
+        "tokenId",
+        "userId",
+        "productId",
+        "subscriptionState",
+        "status",
+        "expiryTimeMillis",
+        "autoRenewing",
+        "cancelAtPeriodEnd",
+        "acknowledged",
+        "revoked",
+        "createdAt",
+        "updatedAt",
+        "lastVerifiedAt"
+      ]
+    },
+    "BillingTokenIndex": {
+      "title": "Billing Token Index",
+      "description": "Lookup index mapping 16-char tokenId to hashed purchase tokenHash and authenticated userId (null while unbound).",
+      "type": "object",
+      "properties": {
+        "tokenHash": { "type": "string" },
+        "userId": { "type": ["string", "null"] },
+        "ownershipStatus": { "type": "string", "enum": ["bound", "unbound"] },
+        "productId": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["tokenHash", "userId", "productId", "updatedAt"]
+    },
+    "RtdnNotification": {
+      "title": "RTDN Notification",
+      "description": "Idempotency and processing lease ledger deduplicating Google Play Real-Time Developer Notifications by Pub/Sub messageId.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "eventType": { "type": ["string", "null"] },
+        "status": { "type": "string", "enum": ["processing", "completed", "failed"] },
+        "leaseExpiresAt": { "type": "number" },
+        "attempts": { "type": "number" },
+        "lastError": { "type": ["string", "null"] },
+        "processedAt": { "type": "number" },
+        "completedAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["messageId", "status", "attempts", "processedAt", "updatedAt"]
+    },
+    "AiUsageQuota": {
+      "title": "AI Usage Quota",
+      "description": "Durable per-subscription AI Spending Coach rate limit and monthly quota tracker.",
+      "type": "object",
+      "properties": {
+        "monthKey": { "type": "string" },
+        "monthlyCount": { "type": "number" },
+        "recentTimestamps": { "type": "array", "items": { "type": "number" } },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["monthKey", "monthlyCount", "recentTimestamps", "updatedAt"]
     }
   },
   "firestore": {
     "/premium_waitlist/{waitlistId}": {
       "schema": "PremiumWaitlistEntry",
       "description": "Secure collection storing centralized early-access registrations for ExpenseFlow Premium."
+    },
+    "/billing_entitlements/{tokenHash}": {
+      "schema": "BillingEntitlement",
+      "description": "Backend-only collection storing hashed purchase tokens and user bindings."
+    },
+    "/billing_token_index/{tokenId}": {
+      "schema": "BillingTokenIndex",
+      "description": "Backend-only index mapping 16-char entitlement tokenIds to tokenHash."
+    },
+    "/rtdn_notifications/{messageId}": {
+      "schema": "RtdnNotification",
+      "description": "Backend-only deduplication records for Google Play Pub/Sub RTDN delivery."
+    },
+    "/ai_usage_quotas/{subjectKey}": {
+      "schema": "AiUsageQuota",
+      "description": "Backend-only durable rate-limit and monthly AI quota counters."
     }
   }
 }

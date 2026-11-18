@@ -2,20 +2,85 @@ name: Build ExpenseFlow Android App Bundle (AAB)
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main, master ]
   pull_request:
-    branches: [main, master]
+    branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build target mode'
+        required: true
+        default: 'release-aab'
+        type: choice
+        options:
+          - release-aab
+          - debug-apk
 
 jobs:
-  build-aab:
-    name: Build Android App Bundle
-    # Pin to Ubuntu 24.04 for reproducibility; validate Ubuntu 26.04 before migrating.
-    runs-on: ubuntu-24.04
+  build-android:
+    name: Build ExpenseFlow Android Release
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
+
+      - name: Determine effective build mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.build_mode }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            MODE="debug-apk"
+          else
+            MODE="release-aab"
+          fi
+          echo "effective_mode=$MODE" >> $GITHUB_OUTPUT
+          echo "Effective Android build mode: $MODE"
+
+      - name: Validate release configuration and signing secrets
+        if: steps.mode.outputs.effective_mode == 'release-aab'
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          MISSING=0
+          if [ -n "$VITE_API_BASE_URL" ]; then
+            if ! echo "$VITE_API_BASE_URL" | grep -Eq '^https://[^/]+'; then
+              echo "::error ::When set, VITE_API_BASE_URL must use a public https:// backend URL for Android release builds."
+              MISSING=1
+            fi
+            if echo "$VITE_API_BASE_URL" | grep -Eqi '^https?://(localhost|127\.0\.0\.1|\[::1\])(:|/|$)'; then
+              echo "::error ::VITE_API_BASE_URL must NOT point to localhost for Android release builds."
+              MISSING=1
+            fi
+          else
+            echo "::notice ::VITE_API_BASE_URL is unset; building Stage 1 offline-first Android release bundle with Stage 2 billing and AI Coach disabled."
+          fi
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error ::Missing required repository secret ANDROID_KEYSTORE_BASE64 for signed release AAB."
+            MISSING=1
+          fi
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "::error ::Missing required repository secret ANDROID_KEYSTORE_PASSWORD for signed release AAB."
+            MISSING=1
+          fi
+          if [ -z "$ANDROID_KEY_ALIAS" ]; then
+            echo "::error ::Missing required repository secret ANDROID_KEY_ALIAS for signed release AAB."
+            MISSING=1
+          fi
+          if [ "$MISSING" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Verify locked Android package ID
+        run: |
+          if ! grep -q 'applicationId "com.expenseflow.app"' android/app/build.gradle; then
+            echo "::error ::android/app/build.gradle does not specify locked applicationId com.expenseflow.app"
+            exit 1
+          fi
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -25,27 +90,38 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Run automated tests
+      - name: TypeScript typecheck and lint
+        run: bun run lint
+
+      - name: Run automated test suites
         run: bun run test
 
-      - name: Build web production assets
+      - name: Build Web Production Assets
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || secrets.VITE_API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY || secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN || secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID || secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET || secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID || secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID || secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID || secrets.VITE_FIREBASE_MEASUREMENT_ID }}
         run: bun run build
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
 
       - name: Set up Java JDK 21
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '21'
 
-      - name: Accept Android SDK licenses (non-interactive)
-        shell: bash
+      - name: Accept Android SDK Licenses
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(command -v sdkmanager)"
+            SDKMANAGER=$(command -v sdkmanager)
           fi
           echo "Using sdkmanager at: $SDKMANAGER"
           set +o pipefail
@@ -57,42 +133,73 @@ jobs:
             exit "$STATUS"
           fi
 
-      - name: Grant execute permission to Gradle wrapper
+      - name: Grant execute permission for Gradle wrapper
         run: chmod +x android/gradlew
 
-      - name: Build Android App Bundle (AAB)
-        run: cd android && ./gradlew bundleRelease --stacktrace
-
-      - name: Sign release AAB when signing secrets are configured
-        id: sign_step
+      - name: Prepare Keystore for Signed Release AAB
+        if: steps.mode.outputs.effective_mode == 'release-aab'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          test -s android/app/release.keystore
+
+      - name: Build Signed Release AAB
+        if: steps.mode.outputs.effective_mode == 'release-aab'
+        env:
+          KEYSTORE_PATH: release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        shell: bash
+          ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE || '1' }}
+          ANDROID_VERSION_NAME: ${{ vars.ANDROID_VERSION_NAME || '1.0' }}
+        run: cd android && ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Verify Cryptographic Signature on Release AAB
+        if: steps.mode.outputs.effective_mode == 'release-aab'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          AAB="android/app/build/outputs/bundle/release/app-release.aab"
-          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
-            echo "Signing release AAB..."
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
-            jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
+          AAB_FILE="android/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$AAB_FILE"
+          if ! jarsigner -verify "$AAB_FILE" 2>&1 | grep -q "jar verified"; then
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
               -keystore android/app/release.keystore \
               -storepass "$KEYSTORE_PASSWORD" \
-              -keypass "$KEY_PASSWORD" \
-              "$AAB" "$KEY_ALIAS"
-            mv "$AAB" android/app/build/outputs/bundle/release/expenseflow-signed-release.aab
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::AAB signed successfully."
-          else
-            echo "::warning::Signing secrets are not configured; the AAB will be unsigned and is not ready for Play Console upload."
-            mv "$AAB" android/app/build/outputs/bundle/release/expenseflow-unsigned-build.aab
-            echo "signed=false" >> "$GITHUB_OUTPUT"
+              -keypass "${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" \
+              "$AAB_FILE" "$KEY_ALIAS"
           fi
+          VERIFY_OUT=$(jarsigner -verify -verbose -certs "$AAB_FILE" 2>&1)
+          echo "$VERIFY_OUT"
+          if ! echo "$VERIFY_OUT" | grep -q "jar verified"; then
+            echo "::error ::Release AAB signature verification failed."
+            exit 1
+          fi
+          mv "$AAB_FILE" android/app/build/outputs/bundle/release/expenseflow-signed-release.aab
+          echo "::notice ::ExpenseFlow signed release AAB built and cryptographically verified."
 
-      - name: Upload Android App Bundle artifact
-        uses: actions/upload-artifact@v7
+      - name: Cleanup Decoded Keystore
+        if: always()
+        run: rm -f android/app/release.keystore
+
+      - name: Upload Signed Release AAB Artifact
+        if: steps.mode.outputs.effective_mode == 'release-aab'
+        uses: actions/upload-artifact@v4
         with:
           name: expenseflow-android-bundle
-          path: android/app/build/outputs/bundle/release/*.aab
+          path: android/app/build/outputs/bundle/release/expenseflow-signed-release.aab
+          if-no-files-found: error
+
+      - name: Build Debug APK (Tester / PR Check)
+        if: steps.mode.outputs.effective_mode == 'debug-apk'
+        run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Debug APK Artifact
+        if: steps.mode.outputs.effective_mode == 'debug-apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: expenseflow-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

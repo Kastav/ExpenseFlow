@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
   X,
   Check,
-  RotateCcw,
 } from 'lucide-react';
 import { getTodayDateString, formatDate } from '../utils/formatters';
+import { useModalBackHandler } from '../utils/backNavigation';
 
 interface DatePickerModalProps {
   isOpen: boolean;
@@ -62,6 +62,8 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   title = 'Select Date',
   maxDate,
 }) => {
+  useModalBackHandler(isOpen, onClose);
+
   // Parse incoming selectedDate or default to today
   const initialParts = useMemo(() => {
     const today = getTodayDateString();
@@ -208,24 +210,24 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="datepicker-modal-title"
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150 overflow-hidden"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden my-auto flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+        className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden flex flex-col max-h-[92dvh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E2E8F0] bg-slate-50/60">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 border-b border-[#E2E8F0] bg-slate-50/60 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
               <CalendarIcon className="w-4 h-4" />
             </div>
-            <div>
-              <h2 id="datepicker-modal-title" className="text-sm font-bold text-[#142D4E]">
+            <div className="min-w-0">
+              <h2 id="datepicker-modal-title" className="text-sm font-bold text-[#142D4E] truncate">
                 {title}
               </h2>
-              <p className="text-[11px] text-[#64748B]">
+              <p className="text-[11px] text-[#64748B] truncate">
                 {tempSelectedDate === todayStr
                   ? 'Today · ' + formatDate(tempSelectedDate)
                   : tempSelectedDate === yesterdayStr
@@ -237,20 +239,20 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             aria-label="Close date picker"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Quick Date Presets Bar */}
-        <div className="flex items-center gap-1.5 px-5 py-2.5 bg-white border-b border-slate-100 overflow-x-auto">
+        <div className="flex items-center gap-1.5 px-4 sm:px-5 py-2.5 bg-white border-b border-slate-100 overflow-x-auto shrink-0">
           <span className="text-[11px] font-semibold text-slate-400 mr-1 shrink-0">Quick:</span>
           <button
             type="button"
             onClick={() => handleQuickSelect(todayStr)}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[30px] ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[38px] ${
               tempSelectedDate === todayStr
                 ? 'bg-teal-600 text-white shadow-2xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -261,7 +263,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
           <button
             type="button"
             onClick={() => handleQuickSelect(yesterdayStr)}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[30px] ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap min-h-[38px] ${
               tempSelectedDate === yesterdayStr
                 ? 'bg-teal-600 text-white shadow-2xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -272,13 +274,13 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
         </div>
 
         {/* Calendar Body */}
-        <div className="p-4 sm:p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-3">
           {/* Month / Year Navigator */}
-          <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center justify-between gap-2 px-0.5">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-2xs transition-all cursor-pointer"
               aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -296,7 +298,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
             <button
               type="button"
               onClick={handleNextMonth}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-2xs transition-all cursor-pointer"
               aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4" />
@@ -329,7 +331,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
                   key={cell.dateString}
                   type="button"
                   onClick={() => handleSelectDay(cell.dateString)}
-                  className={`relative flex items-center justify-center w-full aspect-square rounded-xl text-xs font-semibold transition-all cursor-pointer select-none min-h-[38px] ${
+                  className={`relative flex items-center justify-center w-full aspect-square rounded-xl text-xs font-semibold transition-all cursor-pointer select-none min-h-[40px] ${
                     isSelected
                       ? 'bg-teal-600 text-white font-bold shadow-xs scale-100 z-10'
                       : isToday
@@ -351,11 +353,11 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
         </div>
 
         {/* Modal Footer with Apply and Cancel buttons */}
-        <div className="flex items-center justify-between gap-2.5 px-5 py-3 border-t border-[#E2E8F0] bg-slate-50/70">
+        <div className="flex items-center justify-between gap-2.5 px-4 sm:px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-3 border-t border-[#E2E8F0] bg-slate-50/70 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors cursor-pointer min-h-[38px]"
+            className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors cursor-pointer min-h-[44px]"
           >
             Cancel
           </button>
@@ -363,7 +365,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
           <button
             type="button"
             onClick={handleApply}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer min-h-[38px]"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:scale-[0.98] rounded-xl shadow-xs transition-all cursor-pointer min-h-[44px]"
           >
             <Check className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Apply Date</span>

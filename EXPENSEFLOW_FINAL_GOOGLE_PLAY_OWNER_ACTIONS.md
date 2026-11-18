@@ -1,159 +1,76 @@
-# EXPENSEFLOW — FINAL GOOGLE PLAY OWNER ACTIONS
+# EXPENSEFLOW — STAGE 1 & STAGE 2 GOOGLE PLAY OWNER ACTIONS
 
-**Document Version:** 1.0 (Release Execution)  
 **Application:** ExpenseFlow (`com.expenseflow.app`)  
-**Target Platform:** Google Play Store (Android)  
-**Developer/Tester Account:** `kastavrathor269@gmail.com`  
-**Financial Cost:** ₹0 (Zero Paid Services Required)
+**Firebase Project:** `expenseflow-ad899`  
+**Target Platform:** Google Play Store (Android — Stage 1 Offline-First Core)  
+**Owner / Tester Account:** `kastavrathor269@gmail.com`  
+**Stage 1 Infrastructure Cost:** ₹0 / Free (No Cloud Run, No Firestore DB, No GCP Billing Activation Needed)
 
 ---
 
-## 1. Zero-Leak Security Rule
-- **NEVER** share private keystores (`.keystore` or `.jks`), keystore passwords, or Google Service Account JSON files in public forums, Git commits, or chat sessions.
-- Credentials must be entered directly into your private GitHub repository secrets and Google Play Console.
+## Stage 1 — Zero-Cost Internal Testing Release Checklist (~15 mins total)
 
----
+Follow these steps **without** creating Firestore, Cloud Run, or enabling Cloud Billing.
 
-## 2. Generate Release Keystore (5 Minutes)
-A release keystore is cryptographically unique to you and signs the binary uploaded to Google Play.
+### Step 1 — Publish Permanent Public Privacy Policy & Account Deletion Pages on GitHub Pages (~3 mins)
 
-### Option A: Via Command Line (macOS / Linux / Windows PowerShell with JDK installed)
-Run the following single command in your terminal:
+1. Commit and push the repository (including the ready-to-serve `/docs` folder containing `index.html`, `privacy.html`, `delete-account.html`, and `.nojekyll`) to GitHub (`main` branch).
+2. On GitHub, open **Settings > Pages**:
+   - **Source:** `Deploy from a branch`
+   - **Branch:** `main` -> Folder: **`/docs`** -> **Save**
+3. Wait ~60 seconds for GitHub Pages to publish:
+   - **Privacy Policy URL:** `https://<your-github-username>.github.io/<your-repo-name>/privacy.html`
+   - **Account Deletion URL:** `https://<your-github-username>.github.io/<your-repo-name>/delete-account.html`
+4. Verify in Firebase Console (**Authentication > Settings > Authorized domains**) that `<your-github-username>.github.io` is listed if needed (the external `delete-account.html` page uses Firebase Identity Toolkit REST directly for `expenseflow-ad899`, so also test once with a disposable test email).
+   - *Important:* Never submit temporary `ais-dev-*.run.app` or `ais-pre-*.run.app` URLs to Google Play Console.
 
-```bash
-keytool -genkeypair -v \
-  -keystore expenseflow-release.keystore \
-  -alias expenseflow_release_key \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000 \
-  -storetype JKS
-```
+### Step 2 — Generate Android Upload Keystore & Build Signed Stage 1 AAB (~8 mins)
 
-1. Enter a secure password (e.g. 20+ characters) when prompted for `keystore password`.
-2. Fill in your name/organization details.
-3. Type `yes` to confirm.
-4. **Save the password in your personal password manager.**
-5. Store `expenseflow-release.keystore` in a safe, backed-up location.
-
-### Option B: Via Android Studio (GUI)
-1. Open the `/android` folder in Android Studio.
-2. Navigate to **Build > Generate Signed Bundle / APK**.
-3. Select **Android App Bundle** and click **Next**.
-4. Under **Key store path**, click **Create new...**.
-5. Save as `expenseflow-release.keystore`, set alias to `expenseflow_release_key`, enter passwords, and click **OK**.
-
----
-
-## 3. Configure GitHub Secrets for Automated AAB Signing (3 Minutes)
-This allows your GitHub Actions workflow to build and sign `expenseflow-signed-release.aab` automatically on every release.
-
-### Step 1: Convert Keystore to Base64
-Run this command in the folder containing `expenseflow-release.keystore`:
-
-- **On macOS:**
-  ```bash
-  base64 -i expenseflow-release.keystore | pbcopy
-  ```
-  *(The base64 text is now in your clipboard).*
-- **On Linux:**
-  ```bash
-  base64 -w 0 expenseflow-release.keystore
-  ```
-- **On Windows (PowerShell):**
-  ```powershell
-  [Convert]::ToBase64String([IO.File]::ReadAllBytes("expenseflow-release.keystore")) | Set-Clipboard
-  ```
-
-### Step 2: Add Secrets to GitHub
-1. Open your GitHub Repository in your browser (mobile or desktop).
-2. Go to **Settings > Secrets and variables > Actions**.
-3. Click **New repository secret** and add the following 4 secrets:
-
-| Secret Name | Value | Description |
-| :--- | :--- | :--- |
-| `ANDROID_KEYSTORE_BASE64` | *(Paste the Base64 string)* | The encoded keystore binary |
-| `ANDROID_KEYSTORE_PASSWORD` | *(Your Keystore Password)* | Password chosen in step 2 |
-| `ANDROID_KEY_ALIAS` | `expenseflow_release_key` | Key alias name |
-| `ANDROID_KEY_PASSWORD` | *(Your Key Password)* | Password chosen in step 2 |
-
-### Step 3: Trigger the Build Workflow
-1. Go to **Actions** tab in GitHub.
-2. Select **Build ExpenseFlow Android App Bundle (AAB)**.
-3. Click **Run workflow** > **Run workflow**.
-4. Once completed (approx. 3-4 minutes), click on the run and download the artifact: `expenseflow-signed-release.aab`.
-
----
-
-## 4. Google Play Console: Create Subscription Products (5 Minutes)
-Google Play requires subscription products to exist before testers can purchase them.
-
-1. Log in to [Google Play Console](https://play.google.com/console).
-2. Select **ExpenseFlow** (`com.expenseflow.app`).
-3. In the left navigation menu, scroll to **Monetize > Products > Subscriptions**.
-
-### Product 1: Monthly Subscription
-- Click **Create subscription**.
-- **Product ID:** `expenseflow_premium_monthly`
-- **Name:** `ExpenseFlow Premium (Monthly)`
-- Under **Base plans**, click **Add base plan**:
-  - **Base plan ID:** `monthly-standard`
-  - **Type:** Auto-renewing
-  - **Billing period:** `1 month`
-  - **Price:** Set default to `$14.99 USD` (Play Console will automatically compute localized prices for all worldwide currencies).
-- Click **Save** and **Activate**.
-
-### Product 2: Annual Subscription
-- Click **Create subscription**.
-- **Product ID:** `expenseflow_premium_annual`
-- **Name:** `ExpenseFlow Premium (Annual)`
-- Under **Base plans**, click **Add base plan**:
-  - **Base plan ID:** `annual-standard`
-  - **Type:** Auto-renewing
-  - **Billing period:** `1 year`
-  - **Price:** Set default to `$109.99 USD` (reflects 38% annual savings).
-- Click **Save** and **Activate**.
-
----
-
-## 5. Google Play Console: Setup Internal & Closed Testing (5 Minutes)
-
-1. Navigate to **Testing > Internal testing**.
-2. Click **Create new release**.
-3. Upload `expenseflow-signed-release.aab`.
-4. Enter Release Name: `1.0.0 (1)`.
-5. Enter Release Notes:
-   ```text
-   ExpenseFlow 1.0.0 Initial Release
-   - Private, offline-ready local expense tracking
-   - Daily spending burn rate & recommended daily allowance pacing
-   - AI Personal Spending Coach powered by Gemini 3.8 Flash
-   - Google Play In-App Subscriptions
+1. Generate your upload keystore locally (never commit `*.keystore` or `*.jks` to Git):
+   ```bash
+   keytool -genkeypair -v \
+     -keystore expenseflow-release.keystore \
+     -alias expenseflow_release_key \
+     -keyalg RSA \
+     -keysize 2048 \
+     -validity 10000 \
+     -storetype PKCS12
    ```
-6. Click **Next** > **Save and publish to internal testing**.
-7. Go to **Testers** tab under Internal testing:
-   - Create an email list named `Core Testers`.
-   - Add your email: `kastavrathor269@gmail.com`.
-   - Copy the **Join on Android** invitation link to your mobile device to test purchases using Google Play license testing (free test cards).
+2. Base64-encode `expenseflow-release.keystore` cleanly (one line, no line breaks):
+   - macOS: `base64 -i expenseflow-release.keystore | pbcopy`
+   - Linux: `base64 -w 0 expenseflow-release.keystore`
+   - Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("expenseflow-release.keystore")) | Set-Clipboard`
+3. In GitHub repo **Settings > Secrets and variables > Actions**:
+   - **Do NOT set `VITE_API_BASE_URL` for Stage 1** — leaving it unset builds the offline-first Stage 1 AAB where Premium Billing, AI Coach, and Cloud Sync are cleanly marked **Stage 2 · Coming Later / Unavailable** with zero dead API errors.
+   - Add **Repository Secrets**:
+     - `ANDROID_KEYSTORE_BASE64`
+     - `ANDROID_KEYSTORE_PASSWORD`
+     - `ANDROID_KEY_ALIAS` = `expenseflow_release_key`
+     - `ANDROID_KEY_PASSWORD` (same password as `ANDROID_KEYSTORE_PASSWORD` for PKCS12)
+4. Run **Actions > Build ExpenseFlow Android App Bundle (AAB)** (`build_mode: release-aab`).
+5. Download the signed & `jarsigner`-verified `expenseflow-signed-release.aab` artifact (`expenseflow-android-bundle`).
+
+### Step 3 — Upload to Google Play Internal Testing & Fill Stage 1 Store Declarations (~5 mins)
+
+1. Open [Google Play Console](https://play.google.com/console) -> **ExpenseFlow** (`com.expenseflow.app`).
+2. **Store Settings / Listing Contact Email:** Enter your own real monitored support email (no placeholder addresses exist in code).
+3. **Policy and programs > App content** (copy Stage 1 declarations from `PLAY_STORE_RELEASE_PACKAGE.md`):
+   - **Privacy Policy URL:** `https://<your-github-username>.github.io/<your-repo-name>/privacy.html`
+   - **Account Deletion URL:** `https://<your-github-username>.github.io/<your-repo-name>/delete-account.html`
+   - **Ads:** No
+   - **Data Safety:** Stage 1 answers (Local financial records on device; optional Firebase Auth Email/UID; optional Firebase Analytics toggle; zero financial ledger/Play tokens uploaded).
+   - **Target Audience:** `18+` Finance planner utility.
+4. **Testing > Internal testing > Create new release:**
+   - Upload `expenseflow-signed-release.aab` (`1.0 (1)`).
+   - Add `kastavrathor269@gmail.com` to Testers, roll out to Internal testing, and install from Play Store opt-in URL on an Android device.
 
 ---
 
-## 6. Google Play Console: App Content & Declarations (5 Minutes)
-Navigate to **Policy and programs > App content** in Google Play Console:
+## Stage 2 — Future Paid Cloud & Monetization Expansion (Do Not Execute for Stage 1)
 
-1. **Privacy Policy:**
-   - URL: `https://ais-dev-chgt5vqou74rnkh2rdkedk-975734991727.asia-southeast1.run.app/privacy.html` (or your verified domain).
-2. **Ads:**
-   - Select: `No, my app does not contain ads`.
-3. **App Access:**
-   - Select: `All functionality is available without restrictions`.
-4. **Target Audience:**
-   - Target age: `18 and above`. Not directed to children.
-5. **Content Rating (IARC Questionnaire):**
-   - Category: Utility / Productivity / Finance.
-   - Result: PEGI 3 / ESRB Everyone / General.
-6. **Data Safety Form:**
-   - Financial Info (Other Financial Info): `Collected (Aggregated Only)` for AI Coach; not linked to personal identity.
-   - Audio: `Not collected` (microphone dictation is transcribed locally on-device and never stored or uploaded).
-   - Data Encryption: `Encrypted in transit (HTTPS/TLS)`.
-   - Deletion Request: Users can delete data anytime directly inside the app or via device settings.
+Execute only when you are ready to launch paid subscriptions (`$14.99/mo`, `$109.99/yr`), Gemini AI Spending Coach, and Google Play RTDN verification:
+
+1. Enable GCP billing as required, create Cloud Firestore (**Standard Native mode**, `asia-southeast1`), and deploy `firestore.rules`.
+2. Deploy `Dockerfile` to Cloud Run (`ENTITLEMENT_STORE_BACKEND=firestore`, `USE_GCP_ADC=true`, Secret Manager bindings for `GEMINI_API_KEY`, `PLAY_BILLING_SIGNING_SECRET`, `GOOGLE_PLAY_SERVICE_ACCOUNT_KEY`).
+3. Configure Google Play Console Subscriptions (`expenseflow_premium_monthly` / `expenseflow_premium_annual`), Pub/Sub RTDN topic (`play-billing-rtdn`), and set GitHub Variable `VITE_API_BASE_URL` to your Cloud Run HTTPS URL before rebuilding the Stage 2 release AAB.
+4. Update Play Console Data Safety & Privacy Policy disclosures before launching Stage 2.

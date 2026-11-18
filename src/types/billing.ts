@@ -16,6 +16,7 @@ export type PlayProductId = typeof PLAY_PRODUCT_IDS[keyof typeof PLAY_PRODUCT_ID
 
 export interface PlayProductDetails {
   productId: PlayProductId;
+  basePlanId?: string;
   title: string;
   description: string;
   formattedPrice: string;
@@ -41,6 +42,8 @@ export interface VerifyPurchaseRequestPayload {
   purchaseToken: string;
   productId: string;
   packageName?: string;
+  orderId?: string;
+  mode?: 'purchase' | 'restore';
 }
 
 export type SubscriptionVerificationStatus =
@@ -48,6 +51,11 @@ export type SubscriptionVerificationStatus =
   | 'expired'
   | 'pending'
   | 'canceled'
+  | 'revoked'
+  | 'replayed'
+  | 'unauthorized'
+  | 'on_hold'
+  | 'paused'
   | 'invalid'
   | 'configuration_required'
   | 'server_error';
@@ -58,6 +66,9 @@ export interface VerifyPurchaseResponsePayload {
   productId?: string;
   expiryTimeMillis?: number;
   autoRenewing?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  acknowledged?: boolean;
+  subscriptionState?: string;
   verifiedEntitlementToken?: string;
   message?: string;
 }
@@ -69,5 +80,6 @@ export interface StoredSubscriptionEntitlement {
   verifiedEntitlementToken: string | null;
   expiryTimeMillis: number | null;
   autoRenewing: boolean;
+  cancelAtPeriodEnd?: boolean;
   lastVerifiedAt: number;
 }

@@ -3,8 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Expense, BudgetSettings, ActiveTab, ExpenseCategory, CurrencyCode, PlanData } from './types/expense';
+import {
+  dispatchExpenseFlowBack,
+  setRootBackHandler,
+  useMobileKeyboardVisible,
+  getActiveModalStackDepth,
+} from './utils/backNavigation';
 import {
   loadStoredTransactionsResult,
   saveStoredTransactions,
@@ -45,8 +51,20 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { PremiumUpgradeModal } from './components/PremiumUpgradeModal';
 import { AiSpendingCoachModal } from './components/AiSpendingCoachModal';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
+import { AuthModal } from './components/AuthModal';
 import { PremiumFeatureId } from './types/premium';
 import { trackEvent, initializeFirebaseAnalytics } from './services/analytics';
+import {
+  clearLocalSubscriptionEntitlement,
+  syncSubscriptionOnAppActive,
+} from './services/playBillingService';
+import {
+  AuthUser,
+  DeleteAccountOptions,
+  subscribeToAuthState,
+  signOutUser,
+  deleteCurrentUserAccount,
+} from './services/authService';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function App() {
@@ -71,6 +89,8 @@ export default function App() {
   const [planData, setPlanData] = useState<PlanData>(initialPlanResult.data);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
+  const tabHistoryRef = useRef<ActiveTab[]>(['home']);
+  const isKeyboardVisible = useMobileKeyboardVisible();
 
   // Country and first-run worldwide onboarding state
   const [country, setCountry] = useState<string>(() => loadStoredCountryPreference() || 'US');
@@ -84,6 +104,27 @@ export default function App() {
   const [upgradeFeatureTrigger, setUpgradeFeatureTrigger] = useState<PremiumFeatureId | null>(null);
   const [isAiCoachOpen, setIsAiCoachOpen] = useState<boolean>(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState<boolean>(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const lastAuthUidRef = useRef<string | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [authModalContext, setAuthModalContext] = useState<string | null>(null);
+
+  const handleSelectTab = useCallback((nextTab: ActiveTab) => {
+    setActiveTab((prevTab) => {
+      if (prevTab !== nextTab) {
+        if (nextTab === 'home') {
+          tabHistoryRef.current = ['home'];
+        } else {
+          const filtered = tabHistoryRef.current.filter((t) => t !== nextTab);
+          tabHistoryRef.current = [...filtered, nextTab];
+        }
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+      return nextTab;
+    });
+  }, []);
 
   const handleOpenUpgrade = useCallback((featureId?: PremiumFeatureId) => {
     setUpgradeFeatureTrigger(featureId || null);
@@ -93,6 +134,169 @@ export default function App() {
   const handleOpenAiCoach = useCallback(() => {
     setIsAiCoachOpen(true);
   }, []);
+
+  const handleOpenAuth = useCallback((contextMsg?: string) => {
+    setAuthModalContext(contextMsg || null);
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    await signOutUser();
+    lastAuthUidRef.current = null;
+    setAuthUser(null);
+  }, []);
+
+  const handleDeleteAccount = useCallback(async (options?: DeleteAccountOptions) => {
+    const res = await deleteCurrentUserAccount(options);
+    if (res.success) {
+      lastAuthUidRef.current = null;
+      setAuthUser(null);
+      if (options?.deleteLocalData) {
+        const txRes = loadStoredTransactionsResult();
+        setStorageReadStatus(txRes.status);
+        setStorageErrorMessage(txRes.errorMessage || null);
+        setTransactions(txRes.data);
+
+        const bRes = loadStoredBudgetResult();
+        setBudgetReadStatus(bRes.status);
+        setBudgetErrorMessage(bRes.errorMessage || null);
+        setBudget(bRes.data);
+
+        const pRes = loadStoredPlanResult();
+        setPlanReadStatus(pRes.status);
+        setPlanErrorMessage(pRes.errorMessage || null);
+        setPlanData(pRes.data);
+
+        const cRes = loadStoredCurrencyResult();
+        setCurrencyReadStatus(cRes.status);
+        setCurrencyErrorMessage(cRes.errorMessage || null);
+        setCurrency(cRes.data);
+      }
+    }
+    return res;
+  }, []);
+
+  // Register Android hardware Back & Web popstate navigation
+  useEffect(() => {
+    setRootBackHandler(() => {
+      if (tabHistoryRef.current.length > 1) {
+        const nextHistory = tabHistoryRef.current.slice(0, -1);
+        const targetTab = nextHistory[nextHistory.length - 1] || 'home';
+        tabHistoryRef.current = nextHistory;
+        setActiveTab(targetTab);
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return true;
+      }
+      if (activeTab !== 'home') {
+        tabHistoryRef.current = ['home'];
+        setActiveTab('home');
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return true;
+      }
+      return false;
+    });
+
+    const w = window as unknown as {
+      __expenseFlowHandleBack?: () => boolean;
+      Capacitor?: { isNativePlatform?: () => boolean };
+    };
+    w.__expenseFlowHandleBack = dispatchExpenseFlowBack;
+
+    const isNativeAndroid = Boolean(w.Capacitor?.isNativePlatform?.());
+    const handlePopState = () => {
+      if (isNativeAndroid) return;
+      const consumed = dispatchExpenseFlowBack();
+      if (consumed && (getActiveModalStackDepth() > 0 || tabHistoryRef.current.length > 1)) {
+        window.history.pushState({ efBackSentinel: true }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      setRootBackHandler(null);
+      delete w.__expenseFlowHandleBack;
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [activeTab]);
+
+  // Keep a single browser history sentinel active on non-native web when modals or sub-tabs are open
+  useEffect(() => {
+    const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } };
+    if (w.Capacitor?.isNativePlatform?.()) return;
+
+    const hasBackState =
+      activeTab !== 'home' ||
+      Boolean(editingExpense) ||
+      isBudgetModalOpen ||
+      Boolean(deletingExpense) ||
+      isUpgradeModalOpen ||
+      isAiCoachOpen ||
+      isPrivacyModalOpen ||
+      isAuthModalOpen;
+
+    if (hasBackState && !window.history.state?.efBackSentinel) {
+      window.history.pushState({ efBackSentinel: true }, '');
+    }
+  }, [
+    activeTab,
+    editingExpense,
+    isBudgetModalOpen,
+    deletingExpense,
+    isUpgradeModalOpen,
+    isAiCoachOpen,
+    isPrivacyModalOpen,
+    isAuthModalOpen,
+  ]);
+
+  // Restore Firebase Authentication session across launches and bind entitlement lifecycle
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthState((snapshot) => {
+      const nextUid = snapshot.user?.uid ?? null;
+      const prevUid = lastAuthUidRef.current;
+
+      if (snapshot.initialized && prevUid && nextUid && prevUid !== nextUid) {
+        // Switching accounts directly must immediately purge the prior user's cached local entitlement
+        clearLocalSubscriptionEntitlement();
+      }
+      lastAuthUidRef.current = nextUid;
+      setAuthUser(snapshot.user);
+
+      if (snapshot.initialized) {
+        if (snapshot.user) {
+          syncSubscriptionOnAppActive({ force: true }).catch(() => {});
+        } else {
+          // Signed-out users cannot retain cached Premium entitlement; local financial data stays intact
+          clearLocalSubscriptionEntitlement();
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Re-verify subscription entitlements on app resume when authenticated
+  useEffect(() => {
+    const handleResumeSync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') {
+        return;
+      }
+      if (authUser) {
+        syncSubscriptionOnAppActive().catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', handleResumeSync);
+    document.addEventListener('visibilitychange', handleResumeSync);
+
+    return () => {
+      window.removeEventListener('focus', handleResumeSync);
+      document.removeEventListener('visibilitychange', handleResumeSync);
+    };
+  }, [authUser]);
 
   // Initialize Firebase Analytics safely on mount and send standard page_view and app_open
   useEffect(() => {
@@ -386,7 +590,7 @@ export default function App() {
 
   // Navigate to Add Expense Form on Home dashboard and focus amount
   const handleNavigateToAdd = useCallback(() => {
-    setActiveTab('home');
+    handleSelectTab('home');
     setTimeout(() => {
       const input = document.getElementById('inline-expense-amount');
       if (input) {
@@ -394,23 +598,25 @@ export default function App() {
         input.focus();
       }
     }, 60);
-  }, []);
+  }, [handleSelectTab]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#142D4E] flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
+    <div className="min-h-[100dvh] bg-[#F8FAFC] text-[#142D4E] flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900 overflow-x-clip">
       {/* Top Header with Global Currency Switcher */}
       <Header
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         onOpenAddExpense={handleNavigateToAdd}
         currency={currency}
         onSelectCurrency={handleSelectCurrency}
         onOpenUpgrade={() => handleOpenUpgrade()}
         onOpenAiCoach={handleOpenAiCoach}
+        authUser={authUser}
+        onOpenAuth={() => handleOpenAuth()}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3 xs:px-4 sm:px-6 py-4 sm:py-8 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-8 min-w-0">
         {/* Storage Read Failure Warning Banner (Aggregated across all keys) */}
         {(storageReadStatus === 'error' ||
           budgetReadStatus === 'error' ||
@@ -443,7 +649,7 @@ export default function App() {
             </div>
             <button
               onClick={handleRetryLoadStorage}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-900 bg-white border border-amber-300 hover:bg-amber-100 rounded-xl transition-colors shrink-0 shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-amber-900 bg-white border border-amber-300 hover:bg-amber-100 rounded-xl transition-colors shrink-0 shadow-2xs min-h-[44px] cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry Loading</span>
@@ -459,7 +665,7 @@ export default function App() {
             onSaveExpense={handleSaveExpense}
             onOpenEditExpense={(tx) => setEditingExpense(tx)}
             onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
-            onSelectTab={setActiveTab}
+            onSelectTab={handleSelectTab}
           />
         )}
 
@@ -505,12 +711,15 @@ export default function App() {
             onSelectCountry={handleSelectCountry}
             onOpenUpgrade={handleOpenUpgrade}
             onOpenPrivacyPolicy={() => setIsPrivacyModalOpen(true)}
+            authUser={authUser}
+            onOpenAuth={() => handleOpenAuth()}
+            onSignOut={handleSignOut}
           />
         )}
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <Navigation activeTab={activeTab} onSelectTab={setActiveTab} />
+      <Navigation activeTab={activeTab} onSelectTab={handleSelectTab} hidden={isKeyboardVisible} />
 
       {/* First-Run Worldwide Onboarding Modal */}
       <OnboardingModal
@@ -523,6 +732,8 @@ export default function App() {
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
         featureTrigger={upgradeFeatureTrigger}
+        authUser={authUser}
+        onRequireAuth={(msg) => handleOpenAuth(msg)}
       />
 
       {/* AI Personal Spending Coach Modal (Premium Only) */}
@@ -533,6 +744,24 @@ export default function App() {
         budget={budget}
         currency={currency}
         onOpenUpgrade={() => handleOpenUpgrade('ai_spending_coach')}
+        authUser={authUser}
+        onRequireAuth={(msg) => handleOpenAuth(msg)}
+      />
+
+      {/* Firebase Authentication Sign-In / Registration Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthModalContext(null);
+        }}
+        contextMessage={authModalContext}
+        authUser={authUser}
+        onSignOut={handleSignOut}
+        onDeleteAccount={handleDeleteAccount}
+        onAuthenticated={() => {
+          syncSubscriptionOnAppActive({ force: true }).catch(() => {});
+        }}
       />
 
       {/* Privacy Policy & Data Safety Modal */}

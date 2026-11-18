@@ -25,6 +25,10 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+import { AuthUser } from '../services/authService';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
+import { useStageAvailability } from '../utils/stageAvailability';
+
 interface AiSpendingCoachModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,6 +36,8 @@ interface AiSpendingCoachModalProps {
   budget: BudgetSettings;
   currency: CurrencyCode;
   onOpenUpgrade?: () => void;
+  authUser?: AuthUser | null;
+  onRequireAuth?: (contextMessage: string) => void;
 }
 
 export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
@@ -41,6 +47,8 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
   budget,
   currency,
   onOpenUpgrade,
+  authUser,
+  onRequireAuth,
 }) => {
   const [messages, setMessages] = useState<CoachChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -53,6 +61,10 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const stageAvailability = useStageAvailability(isOpen);
+
+  useModalBackHandler(isOpen, onClose);
+
   const userTier = getCurrentUserPlanTier();
   const isPremium = userTier === 'premium';
 
@@ -61,17 +73,21 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
     return buildSafeFinancialSummary(transactions, budget, currency);
   }, [transactions, budget, currency]);
 
-  // Check backend availability on open
+  // Check backend availability on open (only when backend URL exists)
   useEffect(() => {
     if (isOpen) {
       setErrorBanner(null);
       const usage = getCoachLocalUsage();
       setLocalRequestsCount(usage.requestsCount);
 
-      checkCoachBackendStatus().then((status) => {
-        setBackendStatus(status);
+      if (stageAvailability.isBackendConfigured) {
+        checkCoachBackendStatus().then((status) => {
+          setBackendStatus(status);
+          setStatusChecked(true);
+        });
+      } else {
         setStatusChecked(true);
-      });
+      }
 
       // Initialize welcome message if empty
       if (messages.length === 0) {
@@ -114,6 +130,12 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
   const handleSendMessage = async (customText?: string) => {
     const textToSend = (customText || inputText).trim();
     if (!textToSend || isLoading) return;
+
+    if (!authUser) {
+      onRequireAuth?.('Please sign in to your ExpenseFlow account to access your AI Personal Spending Coach.');
+      setErrorBanner('Sign in with your ExpenseFlow account to chat with your AI Spending Coach.');
+      return;
+    }
 
     if (!isPremium) {
       setErrorBanner('The AI Spending Coach is an ExpenseFlow Premium feature.');
@@ -171,6 +193,9 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
       } else {
         const errorMsg = result.message || 'Unable to generate coach response. Please try again.';
         setErrorBanner(errorMsg);
+        if (result.error === 'unauthorized') {
+          onRequireAuth?.('Your authentication session expired. Please sign in again to continue.');
+        }
         setMessages((prev) => [
           ...prev,
           {
@@ -186,7 +211,9 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
       setErrorBanner('Network error connecting to ExpenseFlow AI Coach service.');
     } finally {
       setIsLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
     }
   };
 
@@ -202,10 +229,11 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-coach-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-hidden animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-hidden animate-in fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[92vh] max-h-[760px]"
+        className="relative w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[92dvh] sm:h-[90dvh] sm:max-h-[760px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Ribbon */}
@@ -214,30 +242,34 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close AI Coach"
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
+            className="absolute top-3 right-3 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider shadow-2xs">
-              <Sparkles className="w-3 h-3 fill-current" />
-              AI Coach
-            </span>
-            <span className="text-[11px] text-teal-200 font-medium">Gemini 3.8 Flash</span>
-          </div>
+          <div className="pr-12">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider shadow-2xs">
+                <Sparkles className="w-3 h-3 fill-current" />
+                AI Coach
+              </span>
+              <span className="text-[11px] text-teal-200 font-medium">
+                {stageAvailability.aiCoachEnabled ? 'Gemini 4 AI' : 'Stage 2 · Coming Later'}
+              </span>
+            </div>
 
-          <h2 id="ai-coach-title" className="text-xl sm:text-2xl font-extrabold tracking-tight">
-            Personal Spending Coach
-          </h2>
-          <p className="text-xs text-teal-100/90 mt-0.5 max-w-md">
-            Empathetic, data-backed financial guidance with strict privacy &amp; data minimization.
-          </p>
+            <h2 id="ai-coach-title" className="text-lg sm:text-2xl font-extrabold tracking-tight">
+              Personal Spending Coach
+            </h2>
+            <p className="text-xs text-teal-100/90 mt-0.5 max-w-md">
+              Empathetic, data-backed financial guidance with strict privacy &amp; data minimization.
+            </p>
+          </div>
 
           {/* Quota & Cost Protection Indicator */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-teal-100/80 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
             <span className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-teal-300" />
+              <Shield className="w-3.5 h-3.5 text-teal-300 shrink-0" />
               <span>Data Minimized (Aggregates Only)</span>
             </span>
             <span className="font-mono">
@@ -282,10 +314,69 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
           </span>
         </div>
 
-        {/* Not Premium Gating Overlay if user is not on Premium Tier */}
-        {!isPremium ? (
-          <div className="flex-1 p-6 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shadow-xs">
+        {/* Stage 1 Offline / Backend Unconfigured Notice OR Authentication/Premium Gating */}
+        {!stageAvailability.aiCoachEnabled ? (
+          <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shadow-xs shrink-0">
+              <Clock className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-[#142D4E]">
+                Coming Later in Stage 2
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                The AI Personal Spending Coach is disabled in this Stage 1 offline-first release because live cloud billing and AI backend services are not yet active.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 text-left w-full space-y-1.5">
+              <div className="font-bold text-[#142D4E] flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <span>Available 100% Free Right Now:</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Your daily spending allowance ({currency}{financialSummary.recommendedDailyAllowance.toFixed(2)}/day), burn rate velocity, category breakdowns, affordability planner, and CSV export run locally on your device with zero account or subscription required.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full min-h-[48px] py-3 px-4 bg-[#142D4E] hover:bg-[#1E3E66] text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Back to Offline App</span>
+            </button>
+          </div>
+        ) : !authUser ? (
+          <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center shadow-xs shrink-0">
+              <Lock className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-bold text-[#142D4E]">
+                Sign In Required
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Sign in with your ExpenseFlow account to verify your Premium subscription and securely access the AI Personal Spending Coach. Your local transactions remain private on this device.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onRequireAuth?.('Sign in to verify your ExpenseFlow Premium membership and use AI Spending Coach.');
+              }}
+              className="w-full min-h-[48px] py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Sign In / Create Account</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : !isPremium ? (
+          <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-6 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shadow-xs shrink-0">
               <Lock className="w-7 h-7" />
             </div>
 
@@ -317,10 +408,10 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
                 onClose();
                 onOpenUpgrade?.();
               }}
-              className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full min-h-[48px] py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Explore Premium Plans ($14.99/mo or $109.99/yr)</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3.5 h-3.5 shrink-0" />
             </button>
           </div>
         ) : (
@@ -414,7 +505,7 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleSendMessage(q)}
-                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] text-slate-700 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                  className="px-3 py-1.5 min-h-[38px] bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] text-slate-700 whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50 shrink-0"
                 >
                   {q}
                 </button>
@@ -422,7 +513,7 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
             </div>
 
             {/* Input Box Footer */}
-            <div className="p-3 bg-white border-t border-slate-200 shrink-0">
+            <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-3 bg-white border-t border-slate-200 shrink-0">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -430,16 +521,17 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
                 }}
                 className="flex items-center gap-2"
               >
-                <div className="relative flex-1">
+                <div className="relative flex-1 min-w-0">
                   <input
                     ref={inputRef}
                     type="text"
                     value={inputText}
+                    onFocus={scrollInputIntoViewOnFocus}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Ask about your budget, spending pace, or savings..."
                     maxLength={500}
                     disabled={isLoading}
-                    className="w-full pl-3.5 pr-14 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-600 text-slate-800 placeholder-slate-400 disabled:opacity-50"
+                    className="w-full min-h-[44px] pl-3.5 pr-14 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-600 text-slate-800 placeholder-slate-400 disabled:opacity-50"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono pointer-events-none">
                     {inputText.length}/500
@@ -450,7 +542,7 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
                   type="submit"
                   disabled={isLoading || !inputText.trim()}
                   aria-label="Send question to AI Coach"
-                  className="w-10 h-10 rounded-xl bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white flex items-center justify-center shrink-0 transition-all shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-11 h-11 rounded-xl bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white flex items-center justify-center shrink-0 transition-all shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

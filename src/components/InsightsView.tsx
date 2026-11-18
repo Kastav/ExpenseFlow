@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { SavingsChallenges } from './SavingsChallenges';
 import { PremiumFeatureId } from '../types/premium';
+import { useModalBackHandler } from '../utils/backNavigation';
 
 interface InsightsViewProps {
   transactions: Expense[];
@@ -58,6 +59,9 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 }) => {
   const [subTab, setSubTab] = useState<InsightsSubTab>('analytics');
   const [period, setPeriod] = useState<InsightPeriod>('this-month');
+  const [selectedBarYm, setSelectedBarYm] = useState<string | null>(null);
+
+  useModalBackHandler(subTab === 'challenges', () => setSubTab('analytics'));
 
   const currentYM = useMemo(() => getCurrentYearMonth(), []);
   const prevYM = useMemo(() => {
@@ -204,44 +208,44 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
   }, [period, totalSpent, distinctMonthsWithData]);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-6">
       {/* Top Header & Sub-Tab Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#142D4E]">
-            Financial Insights & Habits
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#142D4E]">
+            Financial Insights &amp; Habits
           </h1>
-          <p className="text-sm text-[#64748B] mt-0.5">
-            Real-time analytics, pacing velocity, and habit challenges · Currency:{' '}
+          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+            Analytics, pacing velocity, and habit challenges ·{' '}
             <strong className="font-semibold text-teal-700">{currency}</strong>
           </p>
         </div>
 
         {/* View Switcher: Analytics vs Challenges */}
-        <div className="flex items-center gap-1.5 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs self-start sm:self-auto">
+        <div className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center gap-1.5 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
           <button
             type="button"
             onClick={() => setSubTab('analytics')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[34px] ${
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[44px] ${
               subTab === 'analytics'
                 ? 'bg-teal-600 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Spending Analytics</span>
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Analytics</span>
           </button>
           <button
             type="button"
             onClick={() => setSubTab('challenges')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[34px] ${
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[44px] ${
               subTab === 'challenges'
                 ? 'bg-teal-600 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Savings Challenges</span>
+            <Trophy className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Challenges</span>
           </button>
         </div>
       </div>
@@ -256,11 +260,11 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
       ) : (
         <>
           {/* Period Selector Tabs */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Filter Timeframe
             </span>
-            <div className="flex items-center gap-1 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs overflow-x-auto max-w-full">
+            <div className="w-full sm:w-auto grid grid-cols-2 sm:inline-flex items-center gap-1 p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
               {(
                 [
                   { id: 'this-month', label: 'This Month' },
@@ -271,8 +275,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
               ).map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setPeriod(item.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap min-h-[32px] cursor-pointer ${
+                  type="button"
+                  onClick={() => {
+                    setPeriod(item.id);
+                    setSelectedBarYm(null);
+                  }}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all text-center whitespace-nowrap min-h-[44px] cursor-pointer ${
                     period === item.id
                       ? 'bg-teal-600 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -292,12 +300,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                 {/* 1. Month-over-Month Comparison Card */}
                 <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <TrendingUp className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Month-over-Month Trend
                           </h3>
@@ -307,7 +315,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                       {momReport.hasPreviousMonthData ? (
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                             momReport.direction === 'down'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : momReport.direction === 'up'
@@ -327,12 +335,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                           </span>
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-400 font-medium">Baseline building</span>
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">Baseline building</span>
                       )}
                     </div>
 
                     <div className="mt-2 space-y-1">
-                      <div className="text-3xl font-extrabold text-[#142D4E] tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-[#142D4E] tabular-nums truncate">
                         {formatCurrency(totalSpent, currency)}
                       </div>
                       <p className="text-xs text-slate-500">
@@ -355,7 +363,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>Active Month: {formatYearMonthDisplay(currentYM)}</span>
                     <span className="font-medium text-slate-600">
                       {momReport.direction === 'down'
@@ -368,14 +376,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                 </div>
 
                 {/* 2. Daily Spending Velocity & Budget Pacing */}
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <Gauge className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Daily Spending Velocity
                           </h3>
@@ -386,7 +394,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                           velocityReport.budgetStatus === 'on-track'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : velocityReport.budgetStatus === 'caution'
@@ -400,12 +408,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mt-3">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Burn Rate / Day
                         </span>
-                        <span className="text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block truncate">
                           {formatCurrency(velocityReport.averageDailySpend, currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">
@@ -413,11 +421,11 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                         </span>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Recommended / Day
                         </span>
-                        <span className="text-xl font-bold text-teal-700 tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-teal-700 tabular-nums mt-0.5 block truncate">
                           {formatCurrency(velocityReport.recommendedDailyAllowance, currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">to stay within budget</span>
@@ -427,7 +435,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     {/* Progress bar towards budget */}
                     {budget.monthlyBudget > 0 && (
                       <div className="mt-4 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                           <span className="text-slate-500 font-medium">
                             Budget Utilization ({budgetUtilization.toFixed(0)}%)
                           </span>
@@ -451,7 +459,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>
                       Projected Month-End:{' '}
                       <strong className="text-slate-700 font-bold tabular-nums">
@@ -461,7 +469,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     <button
                       type="button"
                       onClick={onOpenBudgetModal}
-                      className="font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                      className="font-semibold text-teal-600 hover:text-teal-700 min-h-[44px] inline-flex items-center px-2 -mr-2 cursor-pointer"
                     >
                       Adjust Budget
                     </button>
@@ -475,12 +483,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
               <>
                 <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <TrendingUp className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Previous Month Spending
                           </h3>
@@ -490,7 +498,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                       {momReport.hasPreviousMonthData && (
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                             momReport.direction === 'down'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : momReport.direction === 'up'
@@ -513,7 +521,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
 
                     <div className="mt-2 space-y-1">
-                      <div className="text-3xl font-extrabold text-[#142D4E] tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-[#142D4E] tabular-nums truncate">
                         {formatCurrency(totalSpent, currency)}
                       </div>
                       <p className="text-xs text-slate-500">
@@ -524,7 +532,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>Month Status: Completed</span>
                     <span className="font-medium text-slate-600">
                       {budget.monthlyBudget > 0
@@ -536,14 +544,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <Gauge className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Monthly Budget Performance
                           </h3>
@@ -552,7 +560,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                           totalSpent <= budget.monthlyBudget
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -562,22 +570,22 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mt-3">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Total Spent
                         </span>
-                        <span className="text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block truncate">
                           {formatCurrency(totalSpent, currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">final total</span>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Remaining Cushion
                         </span>
-                        <span className="text-xl font-bold text-teal-700 tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-teal-700 tabular-nums mt-0.5 block truncate">
                           {formatCurrency(Math.max(0, budget.monthlyBudget - totalSpent), currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">unspent budget</span>
@@ -586,7 +594,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                     {budget.monthlyBudget > 0 && (
                       <div className="mt-4 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                           <span className="text-slate-500 font-medium">
                             Budget Utilization ({((totalSpent / budget.monthlyBudget) * 100).toFixed(0)}%)
                           </span>
@@ -606,12 +614,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>Period: {formatYearMonthDisplay(prevYM)}</span>
                     <button
                       type="button"
                       onClick={onOpenBudgetModal}
-                      className="font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                      className="font-semibold text-teal-600 hover:text-teal-700 min-h-[44px] inline-flex items-center px-2 -mr-2 cursor-pointer"
                     >
                       Adjust Budget
                     </button>
@@ -623,23 +631,23 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             {/* Case C: Last 90 Days Spotlight */}
             {period === 'last-90' && pacing90 && (
               <>
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <Clock className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                            90-Day Spending & Pacing
+                            90-Day Spending &amp; Pacing
                           </h3>
                           <p className="text-xs text-slate-400">Rolling 90 calendar days</p>
                         </div>
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                           pacing90.direction === 'down'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : pacing90.direction === 'up'
@@ -653,13 +661,13 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                           <ArrowUpRight className="w-3.5 h-3.5 text-rose-600" />
                         ) : null}
                         <span>
-                          {pacing90.percentage > 0 ? `+${pacing90.percentage}%` : `${pacing90.percentage}%`} vs Previous 45 Days
+                          {pacing90.percentage > 0 ? `+${pacing90.percentage}%` : `${pacing90.percentage}%`} vs Prev 45d
                         </span>
                       </span>
                     </div>
 
                     <div className="mt-2 space-y-1">
-                      <div className="text-3xl font-extrabold text-[#142D4E] tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-[#142D4E] tabular-nums truncate">
                         {formatCurrency(totalSpent, currency)}
                       </div>
                       <p className="text-xs text-slate-500 leading-relaxed">
@@ -675,8 +683,8 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                    <span className="truncate pr-2">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                    <span className="truncate">
                       Window: {formatDate(rolling90.startDate)} – {formatDate(rolling90.endDate)}
                     </span>
                     <span className="font-medium text-slate-600 shrink-0">
@@ -689,14 +697,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <Gauge className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             90-Day Budget Benchmark
                           </h3>
@@ -705,7 +713,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </div>
 
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                           pacing90.quarterlyBenchmark === 0 || totalSpent <= pacing90.quarterlyBenchmark
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -717,22 +725,22 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mt-3">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Daily Burn Rate
                         </span>
-                        <span className="text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block truncate">
                           {formatCurrency(pacing90.dailyAverage, currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">across 90 days</span>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Quarterly Cushion
                         </span>
-                        <span className="text-xl font-bold text-teal-700 tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-teal-700 tabular-nums mt-0.5 block truncate">
                           {pacing90.quarterlyBenchmark > 0
                             ? formatCurrency(Math.max(0, pacing90.quarterlyBenchmark - totalSpent), currency)
                             : 'N/A'}
@@ -743,7 +751,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
 
                     {pacing90.quarterlyBenchmark > 0 && (
                       <div className="mt-4 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                           <span className="text-slate-500 font-medium">
                             Quarterly Utilization ({pacing90.utilization.toFixed(0)}%)
                           </span>
@@ -763,12 +771,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>Benchmark: 3x Monthly Limit</span>
                     <button
                       type="button"
                       onClick={onOpenBudgetModal}
-                      className="font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                      className="font-semibold text-teal-600 hover:text-teal-700 min-h-[44px] inline-flex items-center px-2 -mr-2 cursor-pointer"
                     >
                       Adjust Budget
                     </button>
@@ -780,14 +788,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             {/* Case D: All Time Spotlight */}
             {period === 'all-time' && allTimeMetrics && (
               <>
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <Layers className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             All-Time Spending History
                           </h3>
@@ -795,13 +803,13 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                         </div>
                       </div>
 
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 shrink-0">
                         {allTimeMetrics.distinctMonths} Active Month{allTimeMetrics.distinctMonths === 1 ? '' : 's'}
                       </span>
                     </div>
 
                     <div className="mt-2 space-y-1">
-                      <div className="text-3xl font-extrabold text-[#142D4E] tabular-nums">
+                      <div className="text-2xl sm:text-3xl font-extrabold text-[#142D4E] tabular-nums truncate">
                         {formatCurrency(totalSpent, currency)}
                       </div>
                       <p className="text-xs text-slate-500 leading-relaxed">
@@ -811,7 +819,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>History Span: Complete Ledger</span>
                     <span className="font-medium text-slate-600">
                       Average Expense: {formatCurrency(averagePerTransaction, currency)}
@@ -819,14 +827,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-xs flex flex-col justify-between">
+                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
                           <TrendingUp className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                             Historical Spending Cadence
                           </h3>
@@ -834,27 +842,27 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                         </div>
                       </div>
 
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
                         {allTimeMetrics.distinctMonths} Active Months
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
-                          Average Spending per Active Month
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mt-3">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
+                          Avg / Active Month
                         </span>
-                        <span className="text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-[#142D4E] tabular-nums mt-0.5 block truncate">
                           {formatCurrency(allTimeMetrics.monthlyAverage, currency)}
                         </span>
-                        <span className="text-[10px] text-slate-400">across {allTimeMetrics.distinctMonths} active month{allTimeMetrics.distinctMonths === 1 ? '' : 's'}</span>
+                        <span className="text-[10px] text-slate-400">across {allTimeMetrics.distinctMonths} active mo</span>
                       </div>
 
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="block text-[11px] font-semibold text-slate-500 uppercase">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+                        <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase truncate">
                           Average / Expense
                         </span>
-                        <span className="text-xl font-bold text-teal-700 tabular-nums mt-0.5 block">
+                        <span className="text-lg sm:text-xl font-bold text-teal-700 tabular-nums mt-0.5 block truncate">
                           {formatCurrency(averagePerTransaction, currency)}
                         </span>
                         <span className="text-[10px] text-slate-400">across {filteredTransactions.length} entries</span>
@@ -869,12 +877,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                     <span>Current Monthly Target: {budget.monthlyBudget > 0 ? formatCurrency(budget.monthlyBudget, currency) : 'None set'}</span>
                     <button
                       type="button"
                       onClick={onOpenBudgetModal}
-                      className="font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                      className="font-semibold text-teal-600 hover:text-teal-700 min-h-[44px] inline-flex items-center px-2 -mr-2 cursor-pointer"
                     >
                       Adjust Budget
                     </button>
@@ -885,34 +893,34 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           </div>
 
           {/* Overview Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Total Spending ({currency})
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 sm:p-4 shadow-xs min-w-0">
+              <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                Total ({currency})
               </span>
-              <p className="text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1">
+              <p className="text-lg sm:text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1 truncate">
                 {formatCurrency(totalSpent, currency)}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-400 mt-1 truncate">
                 {filteredTransactions.length} transaction{filteredTransactions.length === 1 ? '' : 's'}
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Average / Expense ({currency})
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 sm:p-4 shadow-xs min-w-0">
+              <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                Avg / Expense ({currency})
               </span>
-              <p className="text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1">
+              <p className="text-lg sm:text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1 truncate">
                 {formatCurrency(averagePerTransaction, currency)}
               </p>
-              <p className="text-xs text-slate-400 mt-1">Per recorded transaction</p>
+              <p className="text-xs text-slate-400 mt-1 truncate">Per transaction</p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Highest Expense ({currency})
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 sm:p-4 shadow-xs min-w-0">
+              <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                Highest ({currency})
               </span>
-              <p className="text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1 truncate">
+              <p className="text-lg sm:text-2xl font-extrabold text-[#142D4E] tabular-nums mt-1 truncate">
                 {highestTransaction ? formatCurrency(highestAmount, currency) : formatCurrency(0, currency)}
               </p>
               <p className="text-xs text-slate-400 mt-1 truncate">
@@ -920,14 +928,14 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-3.5 sm:p-4 shadow-xs min-w-0">
+              <span className="block text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                 Top Category
               </span>
-              <p className="text-2xl font-extrabold text-teal-700 mt-1 truncate">
+              <p className="text-lg sm:text-2xl font-extrabold text-teal-700 mt-1 truncate">
                 {categories.length > 0 ? categories[0].category : 'None'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-400 mt-1 truncate">
                 {categories.length > 0 ? `${categories[0].percentage.toFixed(0)}% of total` : 'No data'}
               </p>
             </div>
@@ -936,13 +944,13 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           {/* 2-Column Grid for Category Breakdown & Trend Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Category Breakdown Card */}
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-[#142D4E] flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-teal-600" />
-                  <span>Category Distribution ({currency})</span>
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs min-w-0">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="text-base font-bold text-[#142D4E] flex items-center gap-2 min-w-0">
+                  <PieChart className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span className="truncate">Category Distribution ({currency})</span>
                 </h2>
-                <span className="text-xs font-semibold text-slate-500 tabular-nums">
+                <span className="text-xs font-semibold text-slate-500 tabular-nums shrink-0">
                   {categories.length} categories
                 </span>
               </div>
@@ -961,9 +969,9 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     const color = catDef?.color || '#0D9488';
                     return (
                       <div key={cat.category} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-[#142D4E]">{cat.category}</span>
-                          <div className="text-right tabular-nums">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-[#142D4E] truncate">{cat.category}</span>
+                          <div className="text-right tabular-nums shrink-0">
                             <span className="font-bold text-[#142D4E]">{formatCurrency(cat.total, currency)}</span>
                             <span className="text-slate-500 text-[11px] ml-1.5 font-medium">
                               ({cat.percentage.toFixed(1)}%)
@@ -987,20 +995,20 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             </div>
 
             {/* Monthly Spending Trends */}
-            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs flex flex-col justify-between min-w-0">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-[#142D4E] flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-teal-600" />
-                    <span>
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <h2 className="text-base font-bold text-[#142D4E] flex items-center gap-2 min-w-0">
+                    <BarChart3 className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span className="truncate">
                       {period === 'last-90'
-                        ? `Monthly Spending in 90-Day Window (${currency})`
+                        ? `90-Day Monthly Trend (${currency})`
                         : period === 'all-time'
-                        ? `All-Time Monthly Spending Trends (${currency})`
-                        : `6-Month Spending Trends (${currency})`}
+                        ? `All-Time Monthly Trend (${currency})`
+                        : `6-Month Spending Trend (${currency})`}
                     </span>
                   </h2>
-                  <span className="text-xs text-slate-500 font-medium">{currency}</span>
+                  <span className="text-xs text-slate-500 font-medium shrink-0">{currency}</span>
                 </div>
 
                 {monthlyTrends.length === 0 || monthlyTrends.every((m) => m.total === 0) ? (
@@ -1014,43 +1022,75 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  <div className="my-4">
-                    {/* Responsive SVG Bar Chart */}
-                    <div className="h-48 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-slate-200">
-                      {monthlyTrends.map((trend) => {
-                        const heightPct = maxTrendTotal > 0 ? (trend.total / maxTrendTotal) * 100 : 0;
-                        return (
-                          <div
-                            key={trend.yearMonth}
-                            className="flex-1 flex flex-col items-center h-full justify-end group"
-                          >
-                            {/* Hover Tooltip / Label */}
-                            <div className="text-[10px] font-bold text-slate-600 tabular-nums mb-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                              {trend.total > 0
-                                ? formatCurrency(trend.total, currency, false)
-                                : formatCurrency(0, currency, false)}
-                            </div>
-                            {/* Bar */}
-                            <div className="w-full max-w-[42px] bg-slate-100 rounded-t-lg overflow-hidden flex flex-col justify-end h-full">
+                  <div className="my-3">
+                    {/* Tap-friendly Chart Container */}
+                    <div className="overflow-x-auto overscroll-x-contain pb-1">
+                      <div className="h-48 flex items-end justify-between gap-1.5 sm:gap-2 pt-6 pb-2 px-1 sm:px-2 border-b border-slate-200">
+                        {monthlyTrends.map((trend) => {
+                          const heightPct = maxTrendTotal > 0 ? (trend.total / maxTrendTotal) * 100 : 0;
+                          const isSelected = selectedBarYm === trend.yearMonth;
+                          const needsMinWidth = monthlyTrends.length > 6;
+                          return (
+                            <button
+                              key={trend.yearMonth}
+                              type="button"
+                              onClick={() =>
+                                setSelectedBarYm(isSelected ? null : trend.yearMonth)
+                              }
+                              aria-label={`${trend.label}: ${formatCurrency(trend.total, currency)}`}
+                              className={`${
+                                needsMinWidth ? 'min-w-[46px] shrink-0' : 'flex-1 min-w-0'
+                              } flex flex-col items-center h-full justify-end group cursor-pointer focus:outline-none`}
+                            >
+                              {/* Label / Tap readout */}
                               <div
-                                className="w-full bg-teal-600 rounded-t-lg transition-all duration-500 group-hover:bg-teal-700"
-                                style={{ height: `${Math.max(heightPct, 4)}%` }}
-                              />
-                            </div>
-                            {/* Month Label */}
-                            <span className="text-[11px] font-medium text-slate-500 mt-2 truncate w-full text-center">
-                              {trend.label}
-                            </span>
-                          </div>
-                        );
-                      })}
+                                className={`text-[9px] sm:text-[10px] font-bold tabular-nums mb-1 truncate max-w-full transition-colors ${
+                                  isSelected
+                                    ? 'text-teal-700'
+                                    : 'text-slate-600 group-hover:text-teal-700'
+                                }`}
+                              >
+                                {trend.total > 0
+                                  ? formatCurrency(trend.total, currency, false)
+                                  : formatCurrency(0, currency, false)}
+                              </div>
+                              {/* Bar */}
+                              <div className="w-full max-w-[42px] bg-slate-100 rounded-t-lg overflow-hidden flex flex-col justify-end h-full">
+                                <div
+                                  className={`w-full rounded-t-lg transition-all duration-300 ${
+                                    isSelected
+                                      ? 'bg-teal-700 ring-2 ring-teal-300'
+                                      : 'bg-teal-600 group-hover:bg-teal-700'
+                                  }`}
+                                  style={{ height: `${Math.max(heightPct, 4)}%` }}
+                                />
+                              </div>
+                              {/* Month Label */}
+                              <span
+                                className={`text-[10px] sm:text-[11px] font-medium mt-2 truncate w-full text-center ${
+                                  isSelected ? 'text-teal-700 font-bold' : 'text-slate-500'
+                                }`}
+                              >
+                                {trend.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <p className="text-[11px] text-slate-400 text-right mt-2">
-                      {period === 'last-90'
-                        ? `Monthly totals in 90-day window · Total: ${formatCurrency(totalSpent, currency)}`
+                      {selectedBarYm
+                        ? (() => {
+                            const found = monthlyTrends.find((m) => m.yearMonth === selectedBarYm);
+                            return found
+                              ? `${found.label}: ${formatCurrency(found.total, currency)}`
+                              : '';
+                          })()
+                        : period === 'last-90'
+                        ? `90-day window · Total: ${formatCurrency(totalSpent, currency)}`
                         : period === 'all-time'
-                        ? `All recorded monthly totals · Total: ${formatCurrency(totalSpent, currency)}`
-                        : `Showing spending recorded per month in ${currency}`}
+                        ? `All recorded months · Total: ${formatCurrency(totalSpent, currency)}`
+                        : `Tap any month bar to inspect · ${currency}`}
                     </p>
                   </div>
                 )}
@@ -1094,26 +1134,26 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             </div>
           </div>
 
-          {/* AI Personal Spending Coach (Premium Feature Teaser) */}
-          <div className="bg-gradient-to-r from-teal-950 via-[#142D4E] to-[#1E3E66] rounded-2xl p-5 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-teal-800/60">
-            <div className="space-y-1.5 max-w-xl">
-              <div className="flex items-center gap-2">
+          {/* AI Personal Spending Coach (Stage 2 Teaser) */}
+          <div className="bg-gradient-to-r from-teal-950 via-[#142D4E] to-[#1E3E66] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-teal-800/60">
+            <div className="space-y-1.5 max-w-xl min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
                   <Sparkles className="w-3 h-3 fill-current" />
-                  Premium Feature
+                  Stage 2 · Coming Later
                 </span>
-                <span className="text-xs text-teal-200 font-semibold">$14.99/mo or $109.99/yr</span>
+                <span className="text-xs text-teal-200 font-semibold">Planned Premium Add-on</span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Bot className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>AI Personal Spending Coach</span>
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Receive personalized guidance on spending velocity, category burn rates, and daily allowances powered by Gemini 3.8 Flash. Strictly gated behind Premium entitlement with data minimization and rate protection.
+                Upcoming cloud-backed coaching on spending velocity and category burn rates using minimized monthly summaries. Disabled in Stage 1 offline-first release; all local insights above are 100% free right now.
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+            <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -1123,10 +1163,10 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
                     onOpenUpgrade?.('ai_spending_coach');
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-[0.98]"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
               >
-                <Bot className="w-3.5 h-3.5" />
-                <span>Open AI Coach</span>
+                <Bot className="w-4 h-4" />
+                <span>View Stage 2 Info</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

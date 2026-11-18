@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Expense, CurrencyCode } from '../types/expense';
 import {
   ISO_COUNTRIES,
-  ISO_CURRENCIES,
   getCountryDetails,
   getCurrencyDetails,
   getCountryFlagEmoji,
@@ -28,11 +28,17 @@ import {
   Loader2,
   Sparkles,
   Cloud,
-  Bot,
   ArrowRight,
   FileText,
+  UserCheck,
+  LogIn,
+  LogOut,
+  X,
 } from 'lucide-react';
 import { PremiumFeatureId } from '../types/premium';
+import { AuthUser } from '../services/authService';
+import { getAnalyticsConsent, setAnalyticsConsent } from '../services/analytics';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface MoreViewProps {
   transactions: Expense[];
@@ -42,6 +48,9 @@ interface MoreViewProps {
   onSelectCountry?: (countryCode: string) => void;
   onOpenUpgrade?: (feature?: PremiumFeatureId) => void;
   onOpenPrivacyPolicy?: () => void;
+  authUser?: AuthUser | null;
+  onOpenAuth?: () => void;
+  onSignOut?: () => Promise<void> | void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -52,6 +61,9 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onSelectCountry,
   onOpenUpgrade,
   onOpenPrivacyPolicy,
+  authUser,
+  onOpenAuth,
+  onSignOut,
 }) => {
   const [exportStatus, setExportStatus] = useState<'success' | 'error' | 'empty' | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -65,9 +77,12 @@ export const MoreView: React.FC<MoreViewProps> = ({
   const [isCountryOpen, setIsCountryOpen] = useState(false);
   const [countryQuery, setCountryQuery] = useState('');
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(() => getAnalyticsConsent());
   const currencyButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Close dropdowns on escape
+  // Close dropdowns on escape & Android hardware back
+  useModalBackHandler(isCountryOpen, () => setIsCountryOpen(false));
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -141,55 +156,126 @@ export const MoreView: React.FC<MoreViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8 max-w-4xl">
+    <div className="space-y-6 max-w-4xl">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#142D4E]">
-          Settings & Preferences
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#142D4E]">
+          Settings &amp; Preferences
         </h1>
-        <p className="text-sm text-[#64748B] mt-0.5">
+        <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
           Customize country and currency display, export your transactions, and manage preferences
         </p>
       </div>
 
+      {/* ExpenseFlow Account & Subscription Identity Card */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              authUser ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-[#142D4E]'
+            }`}>
+              {authUser ? <UserCheck className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-[#142D4E]">
+                {authUser ? 'Signed In Account' : 'ExpenseFlow Account'}
+              </h2>
+              {authUser ? (
+                <p className="text-xs text-slate-600 mt-0.5 break-words">
+                  Signed in as <strong className="text-[#142D4E]">{authUser.email || authUser.uid}</strong>. Tap <strong>Manage / Delete</strong> to view session details or permanently delete your account.
+                </p>
+              ) : (
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Optional Firebase account for future Stage 2 features. Core local expense tracking works offline without an account.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            {authUser ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenAuth?.()}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[#142D4E] text-xs font-bold transition-colors min-h-[44px] cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Manage / Delete</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSignOut?.()}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] text-xs font-bold transition-colors min-h-[44px] cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenAuth?.()}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition-colors min-h-[44px] cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In / Register</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="text-[11px] text-slate-600 bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200/80 space-y-1">
+          <p>
+            Your local expenses, budgets, and plans remain safely on this device regardless of whether you sign in or sign out.
+          </p>
+          <p>
+            Need to delete an existing ExpenseFlow account? Sign in above and choose <strong>Manage / Delete</strong>, or use the standalone{' '}
+            <a href="/delete-account.html" target="_blank" rel="noreferrer" className="text-teal-700 font-semibold underline">
+              Web Account Deletion page
+            </a>.
+          </p>
+        </div>
+      </div>
+
       {/* ExpenseFlow Premium Packaging Card */}
-      <div className="bg-gradient-to-br from-[#142D4E] to-[#1E3E66] rounded-2xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden border border-slate-700/50">
+      <div className="bg-gradient-to-br from-[#142D4E] to-[#1E3E66] rounded-2xl p-4 sm:p-6 text-white shadow-md relative overflow-hidden border border-slate-700/50">
         <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="space-y-2 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
                 <Sparkles className="w-3 h-3 fill-current" />
-                Premium Tier
+                Stage 2 · Coming Later
               </span>
-              <span className="text-xs text-teal-200 font-semibold">$14.99/mo or $109.99/yr</span>
+              <span className="text-xs text-teal-200 font-semibold">Planned: $14.99/mo or $109.99/yr</span>
             </div>
             <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
               ExpenseFlow Premium Packaging &amp; AI
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-              Core local tracking, budgets, velocity, and CSV exports remain <strong>100% free forever</strong>. Ongoing cost-incurring features—including the upcoming AI Personal Spending Coach, automated recommendations, and multi-device cloud sync—are strictly Premium.
+              Core local tracking, budgets, velocity, and CSV exports are <strong>100% free</strong>. Cloud-hosted Premium add-ons (AI Personal Spending Coach and multi-device cloud sync) are disabled in Stage 1 and planned for Stage 2.
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => onOpenUpgrade?.()}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#142D4E] hover:bg-slate-100 font-bold text-xs shadow-sm transition-all cursor-pointer self-start sm:self-auto shrink-0 active:scale-[0.98]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#142D4E] hover:bg-slate-100 font-bold text-xs shadow-sm transition-all cursor-pointer shrink-0 min-h-[44px] active:scale-[0.98]"
           >
-            <span>Explore Premium Plans</span>
+            <span>View Stage 2 Plans</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Country & Currency Preferences Section */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs space-y-5">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-5">
         <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
           <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
             <Coins className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-bold text-[#142D4E]">Country &amp; Currency Preferences</h2>
             <p className="text-xs text-[#64748B] mt-0.5">
               Select your region and preferred currency. Amounts and budgets will format using this standard.
@@ -209,10 +295,10 @@ export const MoreView: React.FC<MoreViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setIsCountryOpen((prev) => !prev);
+                setIsCountryOpen(true);
                 setIsCurrencyModalOpen(false);
               }}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-teal-600 cursor-pointer"
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-teal-600 cursor-pointer min-h-[48px]"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-base leading-none shrink-0" aria-hidden="true">
@@ -232,48 +318,99 @@ export const MoreView: React.FC<MoreViewProps> = ({
               />
             </button>
 
-            {isCountryOpen && (
-              <div className="absolute z-20 left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-2.5 space-y-2">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={countryQuery}
-                    onChange={(e) => setCountryQuery(e.target.value)}
-                    placeholder="Search country..."
-                    autoFocus
-                    className="w-full pl-8 pr-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-600"
-                  />
+            {/* Mobile Bottom-Sheet / Centered Modal Country Picker Portal */}
+            {isCountryOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="more-country-modal-title"
+                className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150"
+                onClick={() => setIsCountryOpen(false)}
+              >
+                <div
+                  className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden flex flex-col max-h-[85dvh]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0] bg-slate-50/70 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <h3 id="more-country-modal-title" className="text-sm font-bold text-[#142D4E]">
+                        Select Country / Region
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCountryOpen(false)}
+                      className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      aria-label="Close country selector"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-3 border-b border-slate-100 bg-white shrink-0">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={countryQuery}
+                        onFocus={scrollInputIntoViewOnFocus}
+                        onChange={(e) => setCountryQuery(e.target.value)}
+                        placeholder="Search country..."
+                        className="w-full pl-9 pr-10 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-600 min-h-[44px]"
+                      />
+                      {countryQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setCountryQuery('')}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                          aria-label="Clear country search"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-100 p-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] touch-pan-y">
+                    {filteredCountries.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        No countries match &ldquo;{countryQuery}&rdquo;.
+                      </div>
+                    ) : (
+                      filteredCountries.map((c) => {
+                        const isSelected = c.code === (country || 'US');
+                        return (
+                          <button
+                            key={c.code}
+                            type="button"
+                            onClick={() => handleCountryPick(c.code)}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-xs transition-colors min-h-[48px] cursor-pointer ${
+                              isSelected
+                                ? 'bg-teal-50 text-teal-900 font-bold'
+                                : 'hover:bg-slate-50 text-[#142D4E]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <span className="text-lg shrink-0" aria-hidden="true">
+                                {getCountryFlagEmoji(c.code)}
+                              </span>
+                              <span className="font-mono text-[11px] text-teal-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+                                {c.code}
+                              </span>
+                              <span className="truncate text-sm">{c.name}</span>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-teal-600 shrink-0 ml-2" />}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-lg">
-                  {filteredCountries.map((c) => {
-                    const isSelected = c.code === (country || 'US');
-                    return (
-                      <button
-                        key={c.code}
-                        type="button"
-                        onClick={() => handleCountryPick(c.code)}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 text-left text-xs transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-teal-50 text-teal-900 font-bold'
-                            : 'hover:bg-slate-50 text-[#142D4E]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="text-base shrink-0" aria-hidden="true">
-                            {getCountryFlagEmoji(c.code)}
-                          </span>
-                          <span className="font-mono text-[10px] text-teal-700 bg-white px-1 py-0.2 rounded border border-slate-200">
-                            {c.code}
-                          </span>
-                          <span className="truncate">{c.name}</span>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-teal-600 shrink-0 ml-2" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
 
@@ -293,7 +430,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
               }}
               aria-label={`Change currency from ${currency}`}
               aria-expanded={isCurrencyModalOpen}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-teal-600 cursor-pointer"
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-teal-600 cursor-pointer min-h-[48px]"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-base leading-none shrink-0" aria-hidden="true">
@@ -333,14 +470,14 @@ export const MoreView: React.FC<MoreViewProps> = ({
       </div>
 
       {/* CSV Export Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs space-y-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-slate-100 text-[#142D4E] flex items-center justify-center shrink-0 border border-slate-200/60">
               <FileSpreadsheet className="w-5 h-5 text-[#142D4E]" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-bold text-[#142D4E]">Export Transactions</h2>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200/80">
                   Free
@@ -451,21 +588,21 @@ export const MoreView: React.FC<MoreViewProps> = ({
       </div>
 
       {/* Cloud Sync & Multi-Device Backup (Premium Feature Notice) */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
               <Cloud className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-bold text-[#142D4E]">Multi-Device Cloud Sync</h2>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  Premium
+                  Stage 2 · Coming Later
                 </span>
               </div>
               <p className="text-xs text-[#64748B] mt-0.5">
-                Seamless encrypted database sync across phone, tablet, and desktop
+                Optional encrypted multi-device sync planned for Stage 2 (not active in this offline-first build)
               </p>
             </div>
           </div>
@@ -473,48 +610,73 @@ export const MoreView: React.FC<MoreViewProps> = ({
           <button
             type="button"
             onClick={() => onOpenUpgrade?.('cloud_sync_backup')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Learn More</span>
+            <span>Stage 2 Info</span>
           </button>
         </div>
 
         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-2">
           <p className="leading-relaxed">
-            Multi-device cloud synchronization requires continuous database infrastructure and encryption services, making it an ongoing cost-incurring feature reserved for <strong>ExpenseFlow Premium</strong>.
+            Multi-device cloud synchronization requires live server and database infrastructure and is disabled in this Stage 1 offline-first release.
           </p>
           <p className="text-[11px] text-slate-500">
-            For users who prefer zero-cost local storage, the <strong>Universal CSV Export</strong> above will always remain 100% free with unlimited downloads.
+            Use the <strong>Universal CSV Export</strong> above anytime for 100% free local backups.
           </p>
         </div>
       </div>
 
       {/* Data Storage & Privacy Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs space-y-3">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-4 h-4" />
           </div>
-          <h2 className="text-base font-bold text-[#142D4E]">Data Storage & Privacy</h2>
+          <h2 className="text-base font-bold text-[#142D4E]">Data Storage &amp; Privacy</h2>
         </div>
 
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs sm:text-sm text-[#142D4E] leading-relaxed">
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-20 text-xs sm:text-sm text-[#142D4E] leading-relaxed">
           <p className="font-medium">
-            Your financial data is stored in this browser on this device. Clearing browser data or switching devices may cause you to lose your saved transactions.
+            Your expenses, budgets, and plans remain stored locally on this device. Optional sign-in uses Firebase Authentication only; Stage 1 does not upload your expense ledger to any cloud database.
           </p>
         </div>
 
-        <p className="text-xs text-slate-500 leading-normal">
-          All recorded transactions, budgets, and plans remain stored locally in your browser.
-        </p>
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 bg-white">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-[#142D4E]">Anonymous Usage Analytics</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+              Optional Firebase Analytics event counts (never logs amounts, notes, or personal data).
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={analyticsEnabled}
+            aria-label="Toggle anonymous usage analytics"
+            onClick={() => {
+              const next = !analyticsEnabled;
+              setAnalyticsConsent(next);
+              setAnalyticsEnabled(next);
+            }}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-teal-600 ${
+              analyticsEnabled ? 'bg-teal-600' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-xs transition-transform ${
+                analyticsEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
 
         <div className="pt-2 flex flex-wrap items-center gap-3 border-t border-slate-100">
           {onOpenPrivacyPolicy && (
             <button
               type="button"
               onClick={onOpenPrivacyPolicy}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors min-h-[44px] cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5 text-teal-600" />
               <span>Read Full Privacy Policy</span>
@@ -524,7 +686,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
             href="/privacy.html"
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-slate-500 hover:text-slate-800 underline"
+            className="text-xs text-slate-500 hover:text-slate-800 underline min-h-[44px] inline-flex items-center px-1"
           >
             Public Policy (Web)
           </a>

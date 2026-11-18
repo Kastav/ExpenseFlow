@@ -94,19 +94,19 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-8">
+    <div className="space-y-5 sm:space-y-6">
       {/* First-Use Onboarding Guide (Shown when no transactions exist) */}
       {transactions.length === 0 && showOnboarding && (
         <section
           aria-labelledby="onboarding-heading"
-          className="bg-linear-to-br from-teal-900 to-[#142D4E] text-white rounded-2xl p-5 sm:p-6 shadow-md relative overflow-hidden animate-in fade-in"
+          className="bg-linear-to-br from-teal-900 to-[#142D4E] text-white rounded-2xl p-4 sm:p-6 shadow-md relative overflow-hidden animate-in fade-in"
         >
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-center gap-2.5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center border border-teal-400/30 shrink-0">
                 <Sparkles className="w-5 h-5 text-teal-300" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 id="onboarding-heading" className="text-base sm:text-lg font-bold text-white">
                   Welcome to ExpenseFlow
                 </h2>
@@ -117,14 +117,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             </div>
             <button
               onClick={() => setShowOnboarding(false)}
-              className="text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              className="text-slate-300 hover:text-white min-w-[44px] min-h-[44px] -mt-2 -mr-2 flex items-center justify-center rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               aria-label="Dismiss onboarding guide"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
             <div className="bg-white/10 backdrop-blur-xs rounded-xl p-4 border border-white/15 flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-teal-300 block mb-1">
@@ -137,7 +137,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               </div>
               <button
                 onClick={onOpenBudgetModal}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start min-h-[44px]"
               >
                 <span>Customize Budget</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -162,7 +162,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                     input.focus();
                   }
                 }}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start min-h-[44px]"
               >
                 <span>Jump to Add Form</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -181,7 +181,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               </div>
               <button
                 onClick={() => onSelectTab('plan')}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-teal-200 hover:text-white transition-colors cursor-pointer self-start min-h-[44px]"
               >
                 <span>Open Planner</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -192,33 +192,33 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       )}
       {/* Welcome & Month Banner with Month Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#142D4E]">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#142D4E]">
             Financial Overview
           </h1>
-          <p className="text-sm text-[#64748B] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
             {overview.transactionCount} transaction{overview.transactionCount === 1 ? '' : 's'} in {overview.displayMonth} · Currency: <strong className="font-semibold text-teal-700">{currency}</strong>
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Month Selector Controls */}
-          <div className="inline-flex items-center bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-2xs">
+          <div className="inline-flex items-center bg-white border border-[#E2E8F0] rounded-xl p-0.5 shadow-2xs">
             <button
               type="button"
               onClick={() => setSelectedYearMonth((prev) => shiftYearMonth(prev, -1))}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
               title="Previous month"
               aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="px-2.5 text-xs font-bold text-[#142D4E] min-w-[110px] text-center select-none">
+            <span className="px-2 text-xs font-bold text-[#142D4E] min-w-[96px] sm:min-w-[110px] text-center select-none">
               {formatYearMonthDisplay(selectedYearMonth)}
             </span>
             <button
               type="button"
               onClick={() => setSelectedYearMonth((prev) => shiftYearMonth(prev, 1))}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer"
               title="Next month"
               aria-label="Next month"
             >
@@ -230,7 +230,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <button
               type="button"
               onClick={() => setSelectedYearMonth(currentRealYM)}
-              className="px-2.5 py-2 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors cursor-pointer min-h-[38px]"
+              className="px-3 py-2 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 active:bg-teal-200 border border-teal-200 rounded-xl transition-colors cursor-pointer min-h-[44px]"
             >
               Current Month
             </button>
@@ -238,30 +238,30 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
           <button
             onClick={onOpenBudgetModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-[#E2E8F0] hover:bg-slate-50 rounded-xl transition-colors shadow-2xs min-h-[38px] cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-[#E2E8F0] hover:bg-slate-50 active:bg-slate-100 rounded-xl transition-colors shadow-2xs min-h-[44px] cursor-pointer"
           >
-            <Target className="w-4 h-4 text-teal-600" />
+            <Target className="w-4 h-4 text-teal-600 shrink-0" />
             <span>Edit Monthly Budget</span>
           </button>
         </div>
       </div>
 
       {/* Main Budget Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[#64748B] block">
               {isCurrentMonth ? "This Month's Spending" : `${formatYearMonthDisplay(selectedYearMonth)} Spending`} ({currency})
             </span>
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#142D4E] tabular-nums tracking-tight mt-1">
+            <div className="text-2xl sm:text-4xl font-extrabold text-[#142D4E] tabular-nums tracking-tight mt-1 break-words">
               {formatCurrency(overview.totalSpending, currency)}
             </div>
           </div>
-          <div className="text-right">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeColor}`}>
+          <div className="text-right shrink-0">
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold ${badgeColor}`}>
               {statusText}
             </span>
-            <p className="text-xs text-slate-500 mt-1 tabular-nums">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-1 tabular-nums">
               {overview.percentageUsed.toFixed(1)}% of budget
             </p>
           </div>
@@ -275,20 +275,20 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               style={{ width: `${Math.min(overview.percentageUsed, 100)}%` }}
             />
           </div>
-          <div className="flex justify-between items-center text-xs text-[#64748B] tabular-nums pt-1">
+          <div className="flex flex-wrap justify-between items-center gap-x-3 gap-y-1 text-xs text-[#64748B] tabular-nums pt-1">
             <span>Spent: {formatCurrency(overview.totalSpending, currency)}</span>
             <span>Target: {formatCurrency(overview.monthlyBudget, currency)}</span>
           </div>
         </div>
 
-        {/* Stat Breakdown Grid: Remaining Budget vs Recommended / Day vs Monthly Budget vs Transactions */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+        {/* Stat Breakdown Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-4 border-t border-slate-100">
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Remaining Budget
             </span>
             <p
-              className={`text-lg font-bold tabular-nums mt-0.5 ${
+              className={`text-base sm:text-lg font-bold tabular-nums mt-0.5 truncate ${
                 overview.isOverBudget ? 'text-red-600' : 'text-teal-700'
               }`}
             >
@@ -301,11 +301,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             </span>
           </div>
 
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Recommended / Day
             </span>
-            <p className="text-lg font-bold text-[#142D4E] tabular-nums mt-0.5">
+            <p className="text-base sm:text-lg font-bold text-[#142D4E] tabular-nums mt-0.5 truncate">
               {formatCurrency(velocityReport.recommendedDailyAllowance, currency)}
             </p>
             <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
@@ -315,21 +315,21 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             </span>
           </div>
 
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Monthly Budget
             </span>
-            <p className="text-lg font-bold text-[#142D4E] tabular-nums mt-0.5">
+            <p className="text-base sm:text-lg font-bold text-[#142D4E] tabular-nums mt-0.5 truncate">
               {formatCurrency(overview.monthlyBudget, currency)}
             </p>
             <span className="text-[10px] text-slate-400 block mt-0.5 truncate">Target spending limit</span>
           </div>
 
-          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider block truncate">
               Transactions
             </span>
-            <p className="text-lg font-bold text-[#142D4E] tabular-nums mt-0.5">
+            <p className="text-base sm:text-lg font-bold text-[#142D4E] tabular-nums mt-0.5 truncate">
               {overview.transactionCount}
             </p>
             <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
@@ -378,14 +378,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       </div>
 
       {/* 2-Column Desktop Grid for Category Breakdown & Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
         {/* Spending By Category */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-[#142D4E]">Category Spending ({currency})</h2>
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-base font-bold text-[#142D4E] truncate">Category Spending ({currency})</h2>
             <button
               onClick={() => onSelectTab('insights')}
-              className="text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer"
+              className="text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-2 -mr-2 shrink-0"
             >
               Detailed Insights →
             </button>
@@ -408,9 +408,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 const color = catDef?.color || '#0D9488';
                 return (
                   <div key={item.category} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-[#142D4E]">{item.category}</span>
-                      <div className="text-right tabular-nums">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium text-[#142D4E] truncate">{item.category}</span>
+                      <div className="text-right tabular-nums shrink-0">
                         <span className="font-bold text-[#142D4E]">{formatCurrency(item.total, currency)}</span>
                         <span className="text-slate-400 text-[11px] ml-1.5">({item.percentage.toFixed(0)}%)</span>
                       </div>
@@ -437,12 +437,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         </div>
 
         {/* Recent Transactions */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 sm:p-6 shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-[#142D4E]">Recent Transactions</h2>
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-base font-bold text-[#142D4E] truncate">Recent Transactions</h2>
             <button
               onClick={() => onSelectTab('history')}
-              className="text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer"
+              className="text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer min-h-[44px] inline-flex items-center px-2 -mr-2 shrink-0"
             >
               View All ({transactions.length}) →
             </button>
@@ -464,12 +464,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                 const catDef = CATEGORIES.find((c) => c.name === tx.category);
 
                 return (
-                  <div
+                  <button
                     key={tx.id}
+                    type="button"
                     onClick={() => onOpenEditExpense(tx)}
-                    className="px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
+                    className="w-full px-3 py-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center justify-between gap-3 cursor-pointer group min-h-[56px] text-left"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{
@@ -479,7 +480,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                       >
                         <Tag className="w-4 h-4" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         {/* Display Category prominently as primary title */}
                         <p className="text-sm font-bold text-[#142D4E] truncate">
                           {tx.category}
@@ -495,7 +496,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                           {tx.notes && (
                             <>
                               <span aria-hidden="true">·</span>
-                              <span className="italic truncate max-w-[120px] sm:max-w-[180px]">{tx.notes}</span>
+                              <span className="italic truncate max-w-[110px] sm:max-w-[180px]">{tx.notes}</span>
                             </>
                           )}
                         </div>
@@ -506,9 +507,9 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                       <div className="text-sm font-bold text-[#142D4E] tabular-nums">
                         {formatCurrency(tx.amount, currency)}
                       </div>
-                      <Pencil className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Pencil className="w-3.5 h-3.5 text-slate-400 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

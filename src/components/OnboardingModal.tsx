@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CurrencyCode } from '../types/expense';
 import {
   ISO_COUNTRIES,
@@ -17,8 +18,10 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { CurrencySelectorModal } from './CurrencySelectorModal';
+import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -44,6 +47,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
   const currencyButtonRef = useRef<HTMLButtonElement>(null);
+  const countrySearchRef = useRef<HTMLInputElement>(null);
+
+  useModalBackHandler(isOpen && isCountryDropdownOpen, () => setIsCountryDropdownOpen(false));
+
+  useEffect(() => {
+    if (isCountryDropdownOpen && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      requestAnimationFrame(() => countrySearchRef.current?.focus({ preventScroll: true }));
+    }
+  }, [isCountryDropdownOpen]);
 
   // Close dropdown on click outside / esc
   useEffect(() => {
@@ -97,9 +109,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in overflow-hidden"
     >
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-[#E2E8F0] flex flex-col max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full p-5 sm:p-8 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-8 shadow-2xl border border-[#E2E8F0] flex flex-col max-h-[92dvh] overflow-y-auto overscroll-contain">
         {/* Header Badge */}
         <div className="flex items-center gap-2 mb-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[#142D4E] text-xs font-semibold border border-slate-200">
@@ -136,7 +148,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 setIsCountryDropdownOpen((prev) => !prev);
                 setIsCurrencyModalOpen(false);
               }}
-              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-[#E2E8F0] bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-[#142D4E] cursor-pointer"
+              className="w-full min-h-[48px] flex items-center justify-between p-3.5 rounded-xl border border-[#E2E8F0] bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-[#142D4E] cursor-pointer"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-xl shrink-0" aria-hidden="true">
@@ -156,61 +168,101 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               />
             </button>
 
-            {/* Dropdown Menu */}
-            {isCountryDropdownOpen && (
-              <div className="absolute z-20 left-0 right-0 mt-2 bg-white rounded-2xl border border-[#E2E8F0] shadow-xl p-2.5 space-y-2">
-                {/* Search Bar */}
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={countrySearch}
-                    onChange={(e) => setCountrySearch(e.target.value)}
-                    placeholder="Search country name or 2-letter code..."
-                    autoFocus
-                    className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-xl border border-[#E2E8F0] bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#142D4E]"
-                  />
-                </div>
-
-                {/* Country List */}
-                <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 rounded-xl">
-                  {filteredCountries.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-slate-500">
-                      No country found matching &ldquo;{countrySearch}&rdquo;
+            {/* Country Picker Bottom-Sheet / Centered Modal via Portal */}
+            {isCountryDropdownOpen &&
+              typeof document !== 'undefined' &&
+              createPortal(
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Select country or territory"
+                  className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150 overflow-hidden"
+                  onClick={() => setIsCountryDropdownOpen(false)}
+                >
+                  <div
+                    className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden flex flex-col max-h-[85dvh]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#E2E8F0] bg-slate-50/50 shrink-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Globe className="w-4 h-4 text-[#142D4E] shrink-0" />
+                        <span className="text-sm font-bold text-[#142D4E] truncate">Select Country / Territory</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCountryDropdownOpen(false)}
+                        aria-label="Close country picker"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer shrink-0"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
                     </div>
-                  ) : (
-                    filteredCountries.map((c) => {
-                      const isSelected = c.code === selectedCountryCode;
-                      return (
-                        <button
-                          key={c.code}
-                          type="button"
-                          onClick={() => handleSelectCountry(c.code)}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-xs transition-colors cursor-pointer ${
-                            isSelected
-                              ? 'bg-slate-100 text-[#142D4E] font-bold'
-                              : 'hover:bg-slate-50 text-[#142D4E]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <span className="text-base shrink-0" aria-hidden="true">
-                              {getCountryFlagEmoji(c.code)}
-                            </span>
-                            <span className="font-mono font-bold text-[11px] text-[#142D4E] bg-white px-1.5 py-0.5 rounded border border-[#E2E8F0]">
-                              {c.code}
-                            </span>
-                            <span className="truncate font-medium">{c.name}</span>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-[#142D4E] shrink-0 ml-2" />
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
+
+                    <div className="p-3 border-b border-slate-100 bg-white shrink-0">
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          ref={countrySearchRef}
+                          type="text"
+                          value={countrySearch}
+                          onFocus={scrollInputIntoViewOnFocus}
+                          onChange={(e) => setCountrySearch(e.target.value)}
+                          placeholder="Search country name or 2-letter code..."
+                          className="w-full min-h-[44px] pl-9 pr-11 py-2 text-sm sm:text-xs font-medium rounded-xl border border-[#E2E8F0] bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#142D4E]"
+                        />
+                        {countrySearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCountrySearch('')}
+                            aria-label="Clear country search"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-100 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] touch-pan-y">
+                      {filteredCountries.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-500">
+                          No country found matching &ldquo;{countrySearch}&rdquo;
+                        </div>
+                      ) : (
+                        filteredCountries.map((c) => {
+                          const isSelected = c.code === selectedCountryCode;
+                          return (
+                            <button
+                              key={c.code}
+                              type="button"
+                              onClick={() => handleSelectCountry(c.code)}
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-xs transition-colors cursor-pointer min-h-[48px] ${
+                                isSelected
+                                  ? 'bg-slate-100 text-[#142D4E] font-bold'
+                                  : 'hover:bg-slate-50 text-[#142D4E]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-lg shrink-0" aria-hidden="true">
+                                  {getCountryFlagEmoji(c.code)}
+                                </span>
+                                <span className="font-mono font-bold text-[11px] text-[#142D4E] bg-white px-1.5 py-0.5 rounded border border-[#E2E8F0] shrink-0">
+                                  {c.code}
+                                </span>
+                                <span className="truncate font-medium text-sm">{c.name}</span>
+                              </div>
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-[#142D4E] shrink-0 ml-2" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
           </div>
 
           {/* Currency Selection */}
@@ -235,7 +287,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               }}
               aria-label="Select currency"
               aria-expanded={isCurrencyModalOpen}
-              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-[#E2E8F0] bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-[#142D4E] cursor-pointer"
+              className="w-full min-h-[48px] flex items-center justify-between p-3.5 rounded-xl border border-[#E2E8F0] bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-[#142D4E] cursor-pointer"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="text-xl shrink-0" aria-hidden="true">
