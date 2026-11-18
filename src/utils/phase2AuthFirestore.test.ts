@@ -108,6 +108,11 @@ class FakeFirestoreDatabase {
         const val = db.getCol(key.collection).get(key.id);
         return val ? JSON.parse(JSON.stringify(val)) : null;
       },
+      async queryDocsByField(collection: string, field: string, value: string): Promise<Array<Record<string, unknown>>> {
+        return Array.from(db.getCol(collection).values())
+          .filter((doc) => doc[field] === value)
+          .map((doc) => JSON.parse(JSON.stringify(doc)));
+      },
       async setDoc(key: FirestoreDocKey, data: Record<string, unknown>): Promise<void> {
         db.getCol(key.collection).set(key.id, JSON.parse(JSON.stringify(data)));
       },
@@ -591,6 +596,16 @@ async function runPhase2Tests() {
       const tokenHash = hashPurchaseToken('raw_secret_play_tok_user_a');
       const persistedAcrossRestart = await storeInstanceB.getPurchaseRecord(tokenHash);
       assert(persistedAcrossRestart?.userId === 'uid_user_a', 'Firestore must durably persist userId binding across instances');
+
+      // Legacy entitlement migration: remove the new UID index to simulate a pre-index subscriber.
+      const legacyUidIndexId = createHash('sha256').update('uid_user_a').digest('hex');
+      fakeDb.collections.get(FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS)?.delete(legacyUidIndexId);
+      const reconciledLegacyRecord = await storeInstanceB.getPurchaseRecordByUserId('uid_user_a');
+      assert(reconciledLegacyRecord?.tokenHash === tokenHash,
+        'Legacy subscriber must still resolve from billing_entitlements when user_entitlements index is absent');
+      const repairedUidIndex = fakeDb.collections.get(FIRESTORE_COLLECTIONS.USER_ENTITLEMENTS)?.get(legacyUidIndexId);
+      assert(repairedUidIndex?.tokenHash === tokenHash,
+        'Legacy entitlement lookup must idempotently backfill user_entitlements index');
 
       // 3c-1. Authenticated entitlement endpoint resolves by Firebase UID, not client tier flags.
       const myEntitlement = await fetch(`${baseUrl}/api/entitlements/me`, {
