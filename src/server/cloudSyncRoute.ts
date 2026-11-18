@@ -118,14 +118,15 @@ function validateSnapshot(input: unknown): CloudSyncSnapshotV1 | null {
       input.budget.monthlyBudget <= 0 ||
       !isFiniteNumber(input.budget.lastUpdated)) return null;
 
-  if (!isPlainObject(input.plan)) return null;
+  const plan = input.plan;
+  if (!isPlainObject(plan)) return null;
   const planFields = ['availableMoney', 'upcomingBills', 'otherExpenses', 'proposedPurchase'];
-  if (!planFields.every((field) => typeof input.plan[field] === 'string' && (input.plan[field] as string).length <= 80)) return null;
-  if (input.plan.categoryBudgets !== undefined) {
-    if (!isPlainObject(input.plan.categoryBudgets) || Object.keys(input.plan.categoryBudgets).length > 40) return null;
-    if (!Object.values(input.plan.categoryBudgets).every((value) => typeof value === 'string' && value.length <= 80)) return null;
+  if (!planFields.every((field) => typeof plan[field] === 'string' && (plan[field] as string).length <= 80)) return null;
+  if (plan.categoryBudgets !== undefined) {
+    if (!isPlainObject(plan.categoryBudgets) || Object.keys(plan.categoryBudgets).length > 40) return null;
+    if (!Object.values(plan.categoryBudgets).every((value) => typeof value === 'string' && value.length <= 80)) return null;
   }
-  if (input.plan.lastSaved !== undefined && !isFiniteNumber(input.plan.lastSaved)) return null;
+  if (plan.lastSaved !== undefined && !isFiniteNumber(plan.lastSaved)) return null;
 
   if (typeof input.currency !== 'string' || !VALID_CURRENCIES.includes(input.currency as CurrencyCode)) return null;
   if (input.country !== null && (typeof input.country !== 'string' || !/^[A-Z]{2}$/.test(input.country))) return null;
