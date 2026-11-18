@@ -175,7 +175,18 @@ async function main() {
       readJson.snapshot?.transactions[0]?.id === 'tx_1',
       'The owning UID must read back the committed snapshot.');
 
-    console.log('✔ Cloud Sync tests passed: auth, Premium enforcement, UID isolation, schema validation, idempotency, and revision conflicts.');
+    for (let i = 0; i < 24; i++) {
+      const allowed = await fetch(`${baseUrl}/api/cloud-sync/snapshot`, {
+        headers: { Authorization: 'Bearer token_a' },
+      });
+      assert(allowed.status === 200, 'Cloud Sync must allow up to 30 requests per UID per minute.');
+    }
+    const limited = await fetch(`${baseUrl}/api/cloud-sync/snapshot`, {
+      headers: { Authorization: 'Bearer token_a' },
+    });
+    assert(limited.status === 429, 'Cloud Sync must rate-limit the 31st request in a rolling minute.');
+
+    console.log('✔ Cloud Sync tests passed: auth, Premium enforcement, UID isolation, schema validation, idempotency, revision conflicts, and rate limiting.');
   } finally {
     server.closeAllConnections?.();
     await new Promise<void>((resolve) => server.close(() => resolve()));
