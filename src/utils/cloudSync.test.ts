@@ -14,6 +14,15 @@ function assert(condition: unknown, message: string): asserts condition {
 
 class MemoryCloudSyncPersistence implements CloudSyncPersistence {
   private readonly records = new Map<string, StoredCloudSyncSnapshot>();
+  private readonly recentRequests = new Map<string, number[]>();
+
+  async consumeRateLimit(uid: string, nowMs: number, maxPerMinute: number): Promise<boolean> {
+    const recent = (this.recentRequests.get(uid) || []).filter((time) => time > nowMs - 60_000);
+    if (recent.length >= maxPerMinute) return false;
+    recent.push(nowMs);
+    this.recentRequests.set(uid, recent);
+    return true;
+  }
 
   async get(uid: string): Promise<StoredCloudSyncSnapshot | null> {
     return this.records.get(uid) || null;
