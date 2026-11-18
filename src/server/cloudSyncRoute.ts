@@ -208,8 +208,7 @@ export function createCloudSyncGetHandler(deps: CloudSyncRouteDeps = {}) {
       return;
     }
     const store = await resolvePremiumStore(deps);
-    const persistence = await resolvePersistence(deps);
-    if (!store || !persistence) {
+    if (!store) {
       res.status(503).json({ success: false, status: 'unavailable' });
       return;
     }
@@ -217,6 +216,11 @@ export function createCloudSyncGetHandler(deps: CloudSyncRouteDeps = {}) {
     try {
       if (!(await hasActivePremium(store, caller.uid, nowMs))) {
         res.status(403).json({ success: false, status: 'premium_required' });
+        return;
+      }
+      const persistence = await resolvePersistence(deps);
+      if (!persistence) {
+        res.status(503).json({ success: false, status: 'unavailable' });
         return;
       }
       const record = await persistence.get(caller.uid);
@@ -241,8 +245,7 @@ export function createCloudSyncPutHandler(deps: CloudSyncRouteDeps = {}) {
       return;
     }
     const store = await resolvePremiumStore(deps);
-    const persistence = await resolvePersistence(deps);
-    if (!store || !persistence) {
+    if (!store) {
       res.status(503).json({ success: false, status: 'unavailable' });
       return;
     }
@@ -250,6 +253,11 @@ export function createCloudSyncPutHandler(deps: CloudSyncRouteDeps = {}) {
     try {
       if (!(await hasActivePremium(store, caller.uid, nowMs))) {
         res.status(403).json({ success: false, status: 'premium_required' });
+        return;
+      }
+      const persistence = await resolvePersistence(deps);
+      if (!persistence) {
+        res.status(503).json({ success: false, status: 'unavailable' });
         return;
       }
       const body = req.body as Record<string, unknown>;
