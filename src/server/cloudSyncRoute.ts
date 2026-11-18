@@ -36,6 +36,7 @@ export interface StoredCloudSyncSnapshot {
 }
 
 export interface CloudSyncPersistence {
+  consumeRateLimit(uid: string, nowMs: number, maxPerMinute: number): Promise<boolean>;
   get(uid: string): Promise<StoredCloudSyncSnapshot | null>;
   compareAndSet(
     uid: string,
@@ -63,6 +64,23 @@ export function createAdminCloudSyncPersistence(db: Firestore): CloudSyncPersist
     .collection('cloud_sync').doc('snapshot');
 
   return {
+    async consumeRateLimit(uid, nowMs, maxPerMinute) {
+      const ref = db.collection('users').doc(getUidDocumentId(uid))
+        .collection('cloud_sync').doc('rate_limit');
+      return db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const raw = snap.exists ? snap.data() : undefined;
+        const cutoff = nowMs - 60_000;
+        const recent = Array.isArray(raw?.recentTimestamps)
+          ? (raw!.recentTimestamps as unknown[]).filter((value): value is number =>
+              typeof value === 'number' && Number.isFinite(value) && value > cutoff)
+          : [];
+        if (recent.length >= maxPerMinute) return false;
+        recent.push(nowMs);
+        tx.set(ref, { recentTimestamps: recent, updatedAt: nowMs });
+        return true;
+      });
+    },
     async get(uid) {
       const snap = await refFor(uid).get();
       if (!snap.exists) return null;
@@ -223,6 +241,10 @@ export function createCloudSyncGetHandler(deps: CloudSyncRouteDeps = {}) {
         res.status(503).json({ success: false, status: 'unavailable' });
         return;
       }
+      if (!(await persistence.consumeRateLimit(caller.uid, nowMs, 30))) {
+        res.status(429).json({ success: false, status: 'rate_limited' });
+        return;
+      }
       const record = await persistence.get(caller.uid);
       res.status(200).json({
         success: true,
@@ -258,6 +280,10 @@ export function createCloudSyncPutHandler(deps: CloudSyncRouteDeps = {}) {
       const persistence = await resolvePersistence(deps);
       if (!persistence) {
         res.status(503).json({ success: false, status: 'unavailable' });
+        return;
+      }
+      if (!(await persistence.consumeRateLimit(caller.uid, nowMs, 30))) {
+        res.status(429).json({ success: false, status: 'rate_limited' });
         return;
       }
       const body = req.body as Record<string, unknown>;
