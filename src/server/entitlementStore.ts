@@ -773,14 +773,26 @@ export class FirestoreEntitlementStore implements EntitlementStore {
       'userId',
       userId
     );
-    const candidates = [indexedRecord, ...legacyRecords]
-      .filter((record): record is StoredPurchaseRecord =>
-        Boolean(record) &&
-        record!.userId === userId &&
-        record!.ownershipStatus !== 'unbound' &&
-        typeof record!.tokenHash === 'string' &&
-        typeof record!.tokenId === 'string'
-      );
+    const candidates: StoredPurchaseRecord[] = [];
+    const addCandidate = (raw: Record<string, unknown> | StoredPurchaseRecord | null) => {
+      if (!raw) return;
+      const record = raw as unknown as StoredPurchaseRecord;
+      if (
+        record.userId === userId &&
+        record.ownershipStatus !== 'unbound' &&
+        typeof record.tokenHash === 'string' &&
+        typeof record.tokenId === 'string' &&
+        typeof record.productId === 'string' &&
+        typeof record.expiryTimeMillis === 'number' &&
+        Number.isFinite(record.expiryTimeMillis) &&
+        typeof record.updatedAt === 'number' &&
+        Number.isFinite(record.updatedAt)
+      ) {
+        candidates.push(record);
+      }
+    };
+    addCandidate(indexedRecord);
+    for (const legacyRecord of legacyRecords) addCandidate(legacyRecord);
 
     if (candidates.length === 0) return null;
 
