@@ -270,7 +270,7 @@ export function createCloudSyncPutHandler(deps: CloudSyncRouteDeps = {}) {
         res.status(413).json({ success: false, status: 'snapshot_too_large' });
         return;
       }
-      const payloadHash = crypto.createHash('sha256').update(serialized).digest('hex');
+      const payloadHash = crypto.createHash('sha256').update(`${body.baseRevision}:${serialized}`).digest('hex');
       const next: StoredCloudSyncSnapshot = {
         schemaVersion: 1,
         revision: (body.baseRevision as number) + 1,
