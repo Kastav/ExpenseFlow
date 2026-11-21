@@ -1,5 +1,6 @@
 # Multi-stage Cloud Run / Node.js 22 container for ExpenseFlow Backend & Web App
-# Zero secrets baked into image — provide runtime env vars via Cloud Run / Secret Manager.
+# Build TypeScript server in the builder; production image contains no tsx/dev tooling.
+# Secrets are provided only at runtime through Cloud Run / Secret Manager.
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -9,6 +10,7 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-f
 
 COPY . .
 RUN npm run build
+RUN npx esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.mjs
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -21,11 +23,9 @@ RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/server.ts ./server.ts
-COPY --from=builder /app/src/server ./src/server
-COPY --from=builder /app/src/types ./src/types
+COPY --from=builder /app/server.mjs ./server.mjs
 
 USER node
 EXPOSE 8080
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["node", "server.mjs"]
