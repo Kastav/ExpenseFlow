@@ -1,4 +1,4 @@
-package com.expenseflow.app;
+package com.kastav.expenseflow;
 
 import android.app.Activity;
 import android.content.Context;
