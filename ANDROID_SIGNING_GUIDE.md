@@ -65,7 +65,7 @@ base64 -w 0 expenseflow-release.keystore
 ## 4. Triggering `.github/workflows/build-android.yml`
 
 - Runs `bun run lint`, `bun run test`, `bun run build`, and `bunx cap sync android`.
-- Verifies locked `applicationId "com.expenseflow.app"`.
+- Verifies locked `applicationId "com.kastav.expenseflow"`.
 - In Stage 1 (`VITE_API_BASE_URL` empty), logs notice and compiles a **Stage 1 offline-first signed AAB** (`Premium` billing, AI Coach, and Cloud Sync disabled in UI).
 - If `VITE_API_BASE_URL` is provided, rejects non-HTTPS or `localhost` URLs.
 - Fails closed if any `ANDROID_KEYSTORE_*` secret is missing when `build_mode` is `release-aab`.
