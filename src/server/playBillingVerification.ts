@@ -35,7 +35,7 @@ import {
   verifyFirebaseIdToken,
 } from './firebaseAdmin.ts';
 
-const APP_PACKAGE_NAME = 'com.expenseflow.app';
+const APP_PACKAGE_NAME = 'com.kastav.expenseflow';
 
 export interface AuthenticatedBillingCaller {
   uid: string;
@@ -205,7 +205,7 @@ function isAllowedProductId(productId: string): boolean {
 /**
  * Generates an HMAC-SHA256 signature for verified entitlement tokens.
  * Strictly binds:
- * - APP_PACKAGE_NAME ('com.expenseflow.app')
+ * - APP_PACKAGE_NAME ('com.kastav.expenseflow')
  * - productId ('expenseflow_premium_monthly' or 'expenseflow_premium_annual')
  * - expiryTimeMillis (epoch timestamp)
  * - tokenId (first 16 hex chars of SHA-256(purchaseToken))

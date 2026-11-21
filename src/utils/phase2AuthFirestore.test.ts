@@ -689,7 +689,7 @@ async function runPhase2Tests() {
           messageId: 'rtdn_phase2_revoke_1',
           data: Buffer.from(
             JSON.stringify({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               subscriptionNotification: {
                 notificationType: 12,
                 purchaseToken: 'raw_secret_play_tok_user_a',
@@ -887,7 +887,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_early_unbound_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs + 100),
               subscriptionNotification: {
                 notificationType: 4, // SUBSCRIPTION_PURCHASED
@@ -980,7 +980,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_renew_bound_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs + 2000),
               subscriptionNotification: {
                 notificationType: 2, // SUBSCRIPTION_RENEWED
@@ -1004,7 +1004,7 @@ async function runPhase2Tests() {
         message: {
           messageId: 'msg_concurrent_dup_1',
           data: encodeRtdn({
-            packageName: 'com.expenseflow.app',
+            packageName: 'com.kastav.expenseflow',
             eventTimeMillis: String(fixedNowMs + 2500),
             subscriptionNotification: {
               notificationType: 2,
@@ -1053,7 +1053,7 @@ async function runPhase2Tests() {
         message: {
           messageId: 'msg_transient_fail_1',
           data: encodeRtdn({
-            packageName: 'com.expenseflow.app',
+            packageName: 'com.kastav.expenseflow',
             eventTimeMillis: String(fixedNowMs + 3000),
             subscriptionNotification: {
               notificationType: 3, // SUBSCRIPTION_CANCELED
@@ -1128,7 +1128,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_lease_expired_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs + 500),
               subscriptionNotification: {
                 notificationType: 3,
@@ -1163,7 +1163,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_stale_old_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs - 50_000), // Older than existing lastRtdnEventTimeMillis
               subscriptionNotification: {
                 notificationType: 4, // Older delayed PURCHASED notification
@@ -1193,7 +1193,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_revoke_bound_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs + 20_000),
               subscriptionNotification: {
                 notificationType: 12,
@@ -1234,7 +1234,7 @@ async function runPhase2Tests() {
           message: {
             messageId: 'msg_revoke_unbound_1',
             data: encodeRtdn({
-              packageName: 'com.expenseflow.app',
+              packageName: 'com.kastav.expenseflow',
               eventTimeMillis: String(fixedNowMs + 25_000),
               subscriptionNotification: {
                 notificationType: 12,

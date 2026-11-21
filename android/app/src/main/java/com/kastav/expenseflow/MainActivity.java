@@ -1,4 +1,4 @@
-package com.expenseflow.app;
+package com.kastav.expenseflow;
 
 import android.os.Bundle;
 import android.view.Window;
