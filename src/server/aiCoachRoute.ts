@@ -186,9 +186,10 @@ export function createCoachChatHandler(deps: CoachRouteDeps = {}) {
       return;
     }
 
-    // 2. Verify Firebase ID Token when Firebase Auth is active
+    // 2. Verify Firebase ID Token (unconditionally mandatory in production; never bypassed if Admin is unavailable)
+    const isProduction = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
     const enforceFirebaseAuth = Boolean(
-      deps.requireFirebaseAuth || deps.verifyCallerToken || isFirebaseAdminConfigured()
+      isProduction || deps.requireFirebaseAuth || deps.verifyCallerToken || isFirebaseAdminConfigured()
     );
     let expectedUserId: string | undefined;
 
@@ -199,6 +200,15 @@ export function createCoachChatHandler(deps: CoachRouteDeps = {}) {
           success: false,
           error: 'unauthorized',
           message: 'Sign in with your ExpenseFlow account to use the AI Personal Spending Coach.',
+        } satisfies CoachChatResponsePayload);
+        return;
+      }
+
+      if (!deps.verifyCallerToken && !isFirebaseAdminConfigured()) {
+        res.status(503).json({
+          success: false,
+          error: 'configuration_required',
+          message: 'Firebase authentication verification is unavailable because server credentials are not configured.',
         } satisfies CoachChatResponsePayload);
         return;
       }

@@ -70,7 +70,7 @@ Follow these steps **without** creating Firestore, Cloud Run, or enabling Cloud 
 
 Execute only when you are ready to launch paid subscriptions (`$14.99/mo`, `$109.99/yr`), Gemini AI Spending Coach, and Google Play RTDN verification:
 
-1. Enable GCP billing as required, create Cloud Firestore (**Standard Native mode**, `asia-southeast1`), and deploy `firestore.rules`.
+1. Enable GCP billing as required, verify any existing GCP/App Engine default resource location in `expenseflow-ad899`, create Cloud Firestore (**Standard Native mode**, `us-central1`), and deploy `firestore.rules`.
 2. Deploy `Dockerfile` to Cloud Run (`ENTITLEMENT_STORE_BACKEND=firestore`, `USE_GCP_ADC=true`, Secret Manager bindings for `GEMINI_API_KEY`, `PLAY_BILLING_SIGNING_SECRET`, `GOOGLE_PLAY_SERVICE_ACCOUNT_KEY`).
 3. Configure Google Play Console Subscriptions (`expenseflow_premium_monthly` / `expenseflow_premium_annual`), Pub/Sub RTDN topic (`play-billing-rtdn`), and set GitHub Variable `VITE_API_BASE_URL` to your Cloud Run HTTPS URL before rebuilding the Stage 2 release AAB.
 4. Update Play Console Data Safety & Privacy Policy disclosures before launching Stage 2.

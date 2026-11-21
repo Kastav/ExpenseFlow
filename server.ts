@@ -12,8 +12,8 @@ import {
   isRtdnConfigured,
   BillingVerificationDeps,
 } from './src/server/playBillingVerification.ts';
-import { getEntitlementStoreStatus } from './src/server/entitlementStore.ts';
-import { isFirebaseAdminConfigured } from './src/server/firebaseAdmin.ts';
+import { FIRESTORE_COLLECTIONS, getEntitlementStoreStatus } from './src/server/entitlementStore.ts';
+import { getAdminFirestore, isFirebaseAdminConfigured } from './src/server/firebaseAdmin.ts';
 
 dotenv.config();
 
@@ -74,10 +74,45 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   return false;
 }
 
+export interface ReadinessCheckDeps {
+  checkFirestoreConnectivity?: () => Promise<boolean>;
+}
+
 export interface CreateAppOptions {
   billingDeps?: BillingVerificationDeps;
   coachDeps?: CoachRouteDeps;
+  readinessDeps?: ReadinessCheckDeps;
   disableVite?: boolean;
+}
+
+const FIRESTORE_READINESS_TIMEOUT_MS = 3500;
+
+async function verifyLiveFirestoreConnectivity(): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const db = await getAdminFirestore();
+    if (!db) {
+      return false;
+    }
+
+    const probePromise = db
+      .collection(FIRESTORE_COLLECTIONS.TOKEN_INDEX)
+      .doc('__readiness_probe__')
+      .get()
+      .then(() => true);
+
+    const timeoutPromise = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), FIRESTORE_READINESS_TIMEOUT_MS);
+    });
+
+    return await Promise.race([probePromise, timeoutPromise]);
+  } catch {
+    return false;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<Express> {
@@ -138,6 +173,58 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
 
   app.get('/health', handleHealthCheck);
   app.get('/api/health', handleHealthCheck);
+
+  app.get('/api/ready', async (_req: Request, res: Response) => {
+    const isProduction = (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+    const rawBackend = (process.env.ENTITLEMENT_STORE_BACKEND || '').trim().toLowerCase();
+    const storeStatus = getEntitlementStoreStatus();
+    const adminConfigured = isFirebaseAdminConfigured();
+    const playConfigured = isPlayBillingConfigured();
+    const coachAvailable = Boolean(process.env.GEMINI_API_KEY?.trim());
+    const rtdnConfigured = isRtdnConfigured();
+    const shouldVerifyFirestore = isProduction || rawBackend === 'firestore';
+
+    let firestoreConnected = false;
+    if (shouldVerifyFirestore && storeStatus.ready && adminConfigured) {
+      const probeFn = options.readinessDeps?.checkFirestoreConnectivity || verifyLiveFirestoreConnectivity;
+      try {
+        firestoreConnected = await probeFn();
+      } catch {
+        firestoreConnected = false;
+      }
+    }
+
+    const ready = isProduction
+      ? storeStatus.backend === 'firestore' &&
+        storeStatus.ready &&
+        adminConfigured &&
+        firestoreConnected &&
+        playConfigured &&
+        coachAvailable
+      : rawBackend === 'firestore'
+      ? storeStatus.ready && adminConfigured && firestoreConnected
+      : storeStatus.ready;
+
+    res.status(ready ? 200 : 503).json({
+      status: ready ? 'ready' : 'not_ready',
+      service: 'expenseflow-core-service',
+      environment: isProduction ? 'production' : 'development',
+      timestamp: new Date().toISOString(),
+      checks: {
+        persistenceBackend: storeStatus.backend,
+        persistenceReady: storeStatus.ready,
+        firebaseAdminConfigured: adminConfigured,
+        firestoreConnectivity: shouldVerifyFirestore
+          ? firestoreConnected
+            ? 'connected'
+            : 'unavailable'
+          : 'not_configured',
+        playBillingConfigured: playConfigured,
+        coachAvailable,
+        rtdnConfigured,
+      },
+    });
+  });
 
   // Permanent public Privacy Policy and Account Deletion endpoints
   const publicPrivacyPath = path.join(__dirname, 'public', 'privacy.html');

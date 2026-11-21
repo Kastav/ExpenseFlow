@@ -10,7 +10,6 @@
  *   never deletes or uploads local offline-first expense records.
  */
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -23,6 +22,7 @@ import {
   Auth,
   User,
 } from 'firebase/auth';
+import { getFirebaseClientApp, getFirebaseWebConfig } from '../firebaseConfig';
 import {
   clearLocalSubscriptionEntitlement,
   setBillingAuthTokenProvider,
@@ -59,18 +59,7 @@ export interface AuthBackendAdapter {
   onAuthStateChanged(callback: (user: AuthUser | null) => void): () => void;
 }
 
-export function getFirebaseWebConfig() {
-  const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : undefined;
-  return {
-    apiKey: (env?.VITE_FIREBASE_API_KEY || '').trim() || 'AIzaSyCLYdkVvkGffN0cgAB_Aq4gcieY7vKocJw',
-    authDomain: (env?.VITE_FIREBASE_AUTH_DOMAIN || '').trim() || 'expenseflow-ad899.firebaseapp.com',
-    projectId: (env?.VITE_FIREBASE_PROJECT_ID || '').trim() || 'expenseflow-ad899',
-    storageBucket: (env?.VITE_FIREBASE_STORAGE_BUCKET || '').trim() || 'expenseflow-ad899.firebasestorage.app',
-    messagingSenderId: (env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim() || '328236928675',
-    appId: (env?.VITE_FIREBASE_APP_ID || '').trim() || '1:328236928675:web:e1a63b7a769d97fecb3916',
-    measurementId: (env?.VITE_FIREBASE_MEASUREMENT_ID || '').trim() || 'G-KTW24MRHJ5',
-  };
-}
+export { getFirebaseWebConfig };
 
 let cachedAuthInstance: Auth | null = null;
 let testBackendOverride: AuthBackendAdapter | null = null;
@@ -88,7 +77,7 @@ function getFirebaseAuthInstance(): Auth {
   if (cachedAuthInstance) {
     return cachedAuthInstance;
   }
-  const app: FirebaseApp = getApps().length === 0 ? initializeApp(getFirebaseWebConfig()) : getApp();
+  const app = getFirebaseClientApp();
   cachedAuthInstance = getAuth(app);
   return cachedAuthInstance;
 }

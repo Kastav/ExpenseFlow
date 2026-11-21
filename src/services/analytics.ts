@@ -1,21 +1,11 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAnalytics, isSupported, logEvent, Analytics } from 'firebase/analytics';
+import {
+  firebaseConfig,
+  getFirebaseClientApp,
+  validateFirebaseWebConfig,
+} from '../firebaseConfig';
 
-/**
- * Firebase Web configuration for ExpenseFlow.
- * Reads environment variables with embedded fallback defaults matching
- * the ExpenseFlow Firebase project (expenseflow-ad899) to ensure Analytics
- * initializes reliably on both local Preview and published production builds.
- */
-export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCLYdkVvkGffN0cgAB_Aq4gcieY7vKocJw',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'expenseflow-ad899.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'expenseflow-ad899',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'expenseflow-ad899.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '328236928675',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:328236928675:web:e1a63b7a769d97fecb3916',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-KTW24MRHJ5',
-};
+export { firebaseConfig };
 
 export const ANALYTICS_CONSENT_KEY = 'expenseflow_analytics_consent_v1';
 
@@ -103,15 +93,11 @@ export async function initializeFirebaseAnalytics(): Promise<Analytics | null> {
       }
 
       // 2. Verify all required config fields, specifically measurementId
-      const hasValidConfig = Boolean(
-        firebaseConfig.apiKey &&
-        firebaseConfig.projectId &&
-        firebaseConfig.appId &&
-        firebaseConfig.measurementId
-      );
-
-      if (!hasValidConfig) {
-        console.warn('[ExpenseFlow Analytics] Configuration incomplete. Ensure apiKey, projectId, appId, and measurementId are set.');
+      const validation = validateFirebaseWebConfig(firebaseConfig);
+      if (!validation.valid || !validation.hasMeasurementId) {
+        console.warn(
+          '[ExpenseFlow Analytics] Configuration incomplete. Ensure apiKey, projectId, appId, and measurementId are set.'
+        );
         isInitialized = true;
         return null;
       }
@@ -130,10 +116,8 @@ export async function initializeFirebaseAnalytics(): Promise<Analytics | null> {
       }
       console.log('[ExpenseFlow Analytics] Browser environment confirmed as supported.');
 
-      // 4. Initialize or retrieve Firebase App
-      const app: FirebaseApp = getApps().length === 0
-        ? initializeApp(firebaseConfig)
-        : getApp();
+      // 4. Initialize or retrieve shared singleton Firebase App
+      const app = getFirebaseClientApp();
 
       // 5. Initialize Analytics
       analyticsInstance = getAnalytics(app);

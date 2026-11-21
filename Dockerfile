@@ -28,4 +28,4 @@ COPY --from=builder /app/src/types ./src/types
 USER node
 EXPOSE 8080
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["./node_modules/.bin/tsx", "server.ts"]

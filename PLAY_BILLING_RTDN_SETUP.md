@@ -26,12 +26,12 @@ This reference covers the preserved Stage 2 backend environment variables, Fireb
 
 ## 2. Firebase Collections & Security Rules (`expenseflow-ad899`)
 
-`firestore.rules` enforces default-deny (`allow read, write: if false;`) on all client SDK traffic. Only the Express backend (`firebase-admin`) reads and writes these 4 collections using Cloud Firestore Native mode:
+`firestore.rules` enforces default-deny (`allow read, write: if false;`) on all client SDK traffic. Only the Express backend (`firebase-admin`) reads and writes these 4 collections using Cloud Firestore Native mode (`us-central1`):
 
-1. `billing_purchases/{tokenHash}` — Hashed purchase token (`SHA-256`), Firebase UID (`null` while unbound), `obfuscatedAccountId`, subscription status, expiry, `acknowledgementState`, and event timestamps. Raw purchase tokens are **never** stored.
-2. `billing_token_index/{tokenId}` — First 24 hex chars of `tokenHash` -> maps short HMAC entitlement `tokenId` back to `tokenHash` & `userId`.
-3. `billing_rtdn_events/{messageId}` — Lease-based Pub/Sub deduplication (`processing`, `completed`, `retryable_error`).
-4. `ai_usage_quotas/{quotaKey}` — Durable per-subscription rate limit (5/min) and monthly cap (100/month).
+1. `billing_entitlements/{tokenHash}` — Hashed purchase token (`SHA-256`), Firebase UID (`null` while unbound), `ownershipStatus`, `obfuscatedAccountId`, subscription status, expiry, `acknowledged`, and event timestamps. Raw purchase tokens are **never** stored.
+2. `billing_token_index/{tokenId}` — First 16 hex chars of `tokenHash` -> maps short HMAC entitlement `tokenId` back to `tokenHash` & `userId`.
+3. `rtdn_notifications/{messageId}` — Lease-based Pub/Sub deduplication (`processing`, `completed`, `failed`).
+4. `ai_usage_quotas/{subjectKey}` — Durable per-subscription rate limit (5/min) and monthly cap (100/month).
 
 ---
 

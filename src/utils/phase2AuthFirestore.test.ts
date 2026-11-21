@@ -22,11 +22,21 @@ import {
   getTokenIdFromHash,
 } from '../server/entitlementStore';
 import {
+  getAdminFirestore,
+  resetFirebaseAdminCacheForTests,
+} from '../server/firebaseAdmin';
+import {
   AndroidPublisherLike,
   SubscriptionPurchaseV2Data,
   generateVerifiedEntitlementToken,
 } from '../server/playBillingVerification';
 import { PLAY_PRODUCT_IDS } from '../types/billing';
+import { getApps } from 'firebase/app';
+import {
+  getFirebaseClientApp,
+  getFirebaseWebConfig as getCentralFirebaseWebConfig,
+  validateFirebaseWebConfig,
+} from '../firebaseConfig';
 import {
   AuthBackendAdapter,
   AuthUser,
@@ -237,9 +247,24 @@ async function runPhase2Tests() {
       };
 
       const fbCfg = getFirebaseWebConfig();
+      const centralCfg = getCentralFirebaseWebConfig();
       assert(fbCfg.projectId === 'expenseflow-ad899', 'Firebase projectId must be expenseflow-ad899');
       assert(fbCfg.authDomain === 'expenseflow-ad899.firebaseapp.com', 'Firebase authDomain must match expenseflow-ad899.firebaseapp.com');
       assert(Boolean(fbCfg.apiKey && fbCfg.appId), 'Firebase Web apiKey and appId must be configured');
+      assert(JSON.stringify(fbCfg) === JSON.stringify(centralCfg), 'authService must re-export exact centralized Firebase Web config');
+      assert(validateFirebaseWebConfig(centralCfg).valid, 'Centralized Firebase Web config must pass validation');
+      assert(!validateFirebaseWebConfig({ ...centralCfg, projectId: 'other-project' }).valid, 'Mismatched projectId must fail validation');
+      const trimmedCfg = getCentralFirebaseWebConfig({
+        VITE_FIREBASE_API_KEY: '  AIzaSyTestTrimmedKey  ',
+        VITE_FIREBASE_PROJECT_ID: 'other-project',
+      });
+      assert(trimmedCfg.apiKey === 'AIzaSyTestTrimmedKey', 'Env overrides must be trimmed');
+      assert(trimmedCfg.projectId === 'expenseflow-ad899', 'Centralized config must retain expenseflow-ad899 projectId');
+      const app1 = getFirebaseClientApp();
+      const app2 = getFirebaseClientApp();
+      assert(app1 === app2, 'getFirebaseClientApp() must return the exact same singleton FirebaseApp instance');
+      assert(getApps().length === 1, 'Exactly one default FirebaseApp instance must be initialized');
+      assert(app1.options.projectId === 'expenseflow-ad899', 'Initialized FirebaseApp must target expenseflow-ad899');
       assert(
         formatFirebaseAuthError({ code: 'auth/operation-not-allowed' }).message.includes('Email/Password'),
         'auth/operation-not-allowed must surface clear guidance'
@@ -766,6 +791,14 @@ async function runPhase2Tests() {
       }
     }
 
+    const firebaseConfigContent = fs.readFileSync(path.join(process.cwd(), 'src/firebaseConfig.ts'), 'utf-8');
+    for (const secretName of forbiddenTokens) {
+      assert(
+        !firebaseConfigContent.includes(secretName),
+        `Client file src/firebaseConfig.ts must NEVER reference server secret/module "${secretName}"`
+      );
+    }
+
     console.log('✔ Test 4 Passed: Zero server secrets or firebase-admin imports in client source files.');
   }
 
@@ -1268,6 +1301,213 @@ async function runPhase2Tests() {
       else delete process.env.GEMINI_API_KEY;
       if (prevPubSubAudience !== undefined) process.env.GOOGLE_PUBSUB_AUDIENCE = prevPubSubAudience;
       else delete process.env.GOOGLE_PUBSUB_AUDIENCE;
+    }
+  }
+
+  // =========================================================================
+  // 6. Stage 2 Hardening — Production Coach Auth, /api/ready & Credential Failures
+  // =========================================================================
+  {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevBackend = process.env.ENTITLEMENT_STORE_BACKEND;
+    const prevGeminiKey = process.env.GEMINI_API_KEY;
+    const prevSigningSecret = process.env.PLAY_BILLING_SIGNING_SECRET;
+    const prevPlaySa = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY;
+    const prevFirebaseSa = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const prevAppCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const prevUseAdc = process.env.USE_GCP_ADC;
+
+    const restoreEnv = (k: string, v: string | undefined) => {
+      if (v !== undefined) process.env[k] = v;
+      else delete process.env[k];
+    };
+
+    try {
+      // 6a. Unconditional production auth on POST /api/coach/chat without Firebase Admin
+      process.env.NODE_ENV = 'production';
+      process.env.ENTITLEMENT_STORE_BACKEND = 'file';
+      process.env.GEMINI_API_KEY = 'stage2_hardening_dummy_gemini';
+      delete process.env.PLAY_BILLING_SIGNING_SECRET;
+      delete process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY;
+      delete process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      delete process.env.USE_GCP_ADC;
+      resetFirebaseAdminCacheForTests();
+      setDefaultEntitlementStoreForTests(null);
+
+      let probeShouldSucceed = false;
+      let probeShouldThrow = false;
+
+      const hardenedApp = await createApp({
+        disableVite: true,
+        readinessDeps: {
+          checkFirestoreConnectivity: async () => {
+            if (probeShouldThrow) {
+              throw new Error('SECRET_INTERNAL_TRACE_DO_NOT_LEAK');
+            }
+            return probeShouldSucceed;
+          },
+        },
+      });
+
+      const srv = await new Promise<http.Server>((resolve) => {
+        const s = hardenedApp.listen(0, '127.0.0.1', () => resolve(s));
+      });
+      const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+
+      try {
+        // Unauthenticated POST /api/coach/chat in production -> 401
+        const noAuthRes = await fetch(`${url}/api/coach/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'How can I save?', entitlementToken: 'play_sub_fake' }),
+        });
+        assert(noAuthRes.status === 401, `Expected 401 on unauthenticated production coach/chat, got ${noAuthRes.status}`);
+
+        // Play token in Authorization header instead of Firebase ID token -> 401
+        const playHeaderRes = await fetch(`${url}/api/coach/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer play_sub_fake' },
+          body: JSON.stringify({ message: 'How can I save?' }),
+        });
+        assert(playHeaderRes.status === 401, `Expected 401 when Bearer is play_sub_ in production, got ${playHeaderRes.status}`);
+
+        // Bearer ID token supplied when Firebase Admin is unavailable -> 503 (never bypassed)
+        const adminMissingRes = await fetch(`${url}/api/coach/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer some_firebase_id_token' },
+          body: JSON.stringify({ message: 'How can I save?' }),
+        });
+        assert(
+          adminMissingRes.status === 503,
+          `Expected 503 when Firebase Admin unavailable for production coach/chat, got ${adminMissingRes.status}`
+        );
+
+        // 6b. /api/ready in production fails closed (503) when dependencies missing
+        const readyMissingRes = await fetch(`${url}/api/ready`);
+        assert(readyMissingRes.status === 503, `Expected 503 on /api/ready without firestore & billing, got ${readyMissingRes.status}`);
+        const readyMissingJson = (await readyMissingRes.json()) as {
+          status: string;
+          checks: { persistenceBackend: string; firestoreConnectivity: string };
+        };
+        assert(readyMissingJson.status === 'not_ready', 'Expected not_ready status');
+        assert(readyMissingJson.checks.persistenceBackend === 'unconfigured', 'Expected unconfigured persistenceBackend');
+
+        // Configure production dependencies + working Firestore connectivity -> 200
+        process.env.ENTITLEMENT_STORE_BACKEND = 'firestore';
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY = JSON.stringify({
+          type: 'service_account',
+          project_id: 'expenseflow-ad899',
+          client_email: 'sa@expenseflow-ad899.iam.gserviceaccount.com',
+          private_key: 'dummy',
+        });
+        process.env.PLAY_BILLING_SIGNING_SECRET = 'stage2_signing_secret_32_chars_min!';
+        process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY = JSON.stringify({
+          client_email: 'play@expenseflow-ad899.iam.gserviceaccount.com',
+          private_key: 'dummy',
+        });
+        probeShouldSucceed = true;
+
+        const readyOkRes = await fetch(`${url}/api/ready`);
+        assert(readyOkRes.status === 200, `Expected 200 on /api/ready when all production deps ready, got ${readyOkRes.status}`);
+        const readyOkJson = (await readyOkRes.json()) as {
+          status: string;
+          checks: { firestoreConnectivity: string; playBillingConfigured: boolean; coachAvailable: boolean };
+        };
+        assert(
+          readyOkJson.status === 'ready' &&
+            readyOkJson.checks.firestoreConnectivity === 'connected' &&
+            readyOkJson.checks.playBillingConfigured &&
+            readyOkJson.checks.coachAvailable,
+          'Expected full ready payload when dependencies pass'
+        );
+
+        // 6c. Missing Play Billing or GEMINI_API_KEY in production -> 503
+        delete process.env.GEMINI_API_KEY;
+        const missingGeminiReady = await fetch(`${url}/api/ready`);
+        assert(missingGeminiReady.status === 503, `Expected 503 when GEMINI_API_KEY missing in production, got ${missingGeminiReady.status}`);
+        process.env.GEMINI_API_KEY = 'stage2_hardening_dummy_gemini';
+
+        delete process.env.PLAY_BILLING_SIGNING_SECRET;
+        const missingPlayReady = await fetch(`${url}/api/ready`);
+        assert(missingPlayReady.status === 503, `Expected 503 when Play signing secret missing in production, got ${missingPlayReady.status}`);
+        process.env.PLAY_BILLING_SIGNING_SECRET = 'stage2_signing_secret_32_chars_min!';
+
+        // Firestore connectivity returns false -> 503
+        probeShouldSucceed = false;
+        const fsDownRes = await fetch(`${url}/api/ready`);
+        assert(fsDownRes.status === 503, `Expected 503 when Firestore connectivity probe returns false, got ${fsDownRes.status}`);
+
+        // Firestore connectivity throws -> 503 and does NOT leak raw error string
+        probeShouldThrow = true;
+        const fsThrowRes = await fetch(`${url}/api/ready`);
+        assert(fsThrowRes.status === 503, `Expected 503 when Firestore connectivity probe throws, got ${fsThrowRes.status}`);
+        const fsThrowBody = await fsThrowRes.text();
+        assert(!fsThrowBody.includes('SECRET_INTERNAL_TRACE_DO_NOT_LEAK'), '/api/ready must never expose internal exception text');
+        probeShouldThrow = false;
+
+        // 6d. Real Firebase Admin credential failure (no probe override) -> fails closed without leaking secrets
+        const rawCredsApp = await createApp({ disableVite: true });
+        const rawSrv = await new Promise<http.Server>((resolve) => {
+          const s = rawCredsApp.listen(0, '127.0.0.1', () => resolve(s));
+        });
+        const rawUrl = `http://127.0.0.1:${(rawSrv.address() as { port: number }).port}`;
+        try {
+          process.env.FIREBASE_SERVICE_ACCOUNT_KEY = '{malformed_secret_json_marker}';
+          resetFirebaseAdminCacheForTests();
+          let malformedThrew = false;
+          try {
+            await getAdminFirestore();
+          } catch {
+            malformedThrew = true;
+          }
+          assert(malformedThrew, 'getAdminFirestore() must throw FAIL_CLOSED on malformed JSON credentials');
+
+          const badJsonReady = await fetch(`${rawUrl}/api/ready`);
+          assert(badJsonReady.status === 503, `Expected 503 on malformed Firebase Admin JSON, got ${badJsonReady.status}`);
+          const badJsonText = await badJsonReady.text();
+          assert(!badJsonText.includes('malformed_secret_json_marker'), '/api/ready must never leak raw credential values');
+
+          process.env.FIREBASE_SERVICE_ACCOUNT_KEY = JSON.stringify({
+            type: 'service_account',
+            project_id: 'wrong-project-999',
+            client_email: 'x@wrong-project-999.iam.gserviceaccount.com',
+            private_key: 'dummy_private_key',
+          });
+          resetFirebaseAdminCacheForTests();
+          let mismatchThrew = false;
+          try {
+            await getAdminFirestore();
+          } catch {
+            mismatchThrew = true;
+          }
+          assert(mismatchThrew, 'getAdminFirestore() must throw FAIL_CLOSED on project_id mismatch');
+
+          const mismatchReady = await fetch(`${rawUrl}/api/ready`);
+          assert(mismatchReady.status === 503, `Expected 503 on mismatched project_id credentials, got ${mismatchReady.status}`);
+          const mismatchText = await mismatchReady.text();
+          assert(!mismatchText.includes('wrong-project-999') && !mismatchText.includes('dummy_private_key'), '/api/ready must never leak service account details');
+        } finally {
+          rawSrv.closeAllConnections?.();
+          await new Promise<void>((r) => rawSrv.close(() => r()));
+        }
+      } finally {
+        srv.closeAllConnections?.();
+        await new Promise<void>((r) => srv.close(() => r()));
+      }
+
+      console.log('✔ Test 6 Passed: Production Coach auth fail-closed, /api/ready, Firestore unavailability & misconfigured credentials verified.');
+    } finally {
+      restoreEnv('NODE_ENV', prevNodeEnv);
+      restoreEnv('ENTITLEMENT_STORE_BACKEND', prevBackend);
+      restoreEnv('GEMINI_API_KEY', prevGeminiKey);
+      restoreEnv('PLAY_BILLING_SIGNING_SECRET', prevSigningSecret);
+      restoreEnv('GOOGLE_PLAY_SERVICE_ACCOUNT_KEY', prevPlaySa);
+      restoreEnv('FIREBASE_SERVICE_ACCOUNT_KEY', prevFirebaseSa);
+      restoreEnv('GOOGLE_APPLICATION_CREDENTIALS', prevAppCreds);
+      restoreEnv('USE_GCP_ADC', prevUseAdc);
+      resetFirebaseAdminCacheForTests();
+      setDefaultEntitlementStoreForTests(null);
     }
   }
 
