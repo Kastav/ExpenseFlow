@@ -17,6 +17,7 @@ import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
 import com.android.billingclient.api.QueryPurchasesParams;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -276,7 +277,8 @@ public class GooglePlayBillingPlugin extends Plugin implements PurchasesUpdatedL
 
                 billingClient.queryProductDetailsAsync(params, new ProductDetailsResponseListener() {
                     @Override
-                    public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull List<ProductDetails> list) {
+                    public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull QueryProductDetailsResult queryResult) {
+                        List<ProductDetails> list = queryResult.getProductDetailsList();
                         if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                             JSArray results = new JSArray();
                             cachedProductDetails.clear();
