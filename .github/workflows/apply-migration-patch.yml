@@ -1,0 +1,168 @@
+name: Apply ExpenseFlow Migration Patch
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - migration/com-kastav-expenseflow
+    paths:
+      - '.github/workflows/apply-migration-patch.yml'
+
+permissions: {}
+
+concurrency:
+  group: apply-migration-patch-migration-com-kastav-expenseflow
+  cancel-in-progress: false
+
+jobs:
+  apply-and-verify:
+    name: Verify, Apply Patch, Test & Push
+    if: github.ref == 'refs/heads/migration/com-kastav-expenseflow' && github.repository == 'Kastav/ExpenseFlow'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Verify target branch ref strictly
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/migration/com-kastav-expenseflow" ] || [ "${GITHUB_REF_NAME}" != "migration/com-kastav-expenseflow" ]; then
+            echo "::error ::Refusing to run outside branch migration/com-kastav-expenseflow (got ${GITHUB_REF})."
+            exit 1
+          fi
+
+      - name: Checkout migration/com-kastav-expenseflow
+        uses: actions/checkout@v4
+        with:
+          ref: migration/com-kastav-expenseflow
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify expected commit history and working state
+        id: verify_state
+        run: |
+          EXPECTED_BASE_COMMIT="317f356bc6c8e1dab0263eaab3752d7d56c4db7a"
+          EXPECTED_ORIG_PARENT="2eeb9ce76aa9d792ce82bb7e951f83d97b02f195"
+          EXPECTED_PATCH_SHA256="7a48e520b3249bffacb53715b5b62f03654f1adf0e06ebe72077943de3184dea"
+          PATCH_FILE="expenseflow_migration_premium.patch"
+          PATCH_SUBJECT="Implement and harden Premium features (Cloud Sync, AI Recommendations, Advanced AI Insights)"
+
+          CURRENT_BRANCH=$(git branch --show-current)
+          if [ "$CURRENT_BRANCH" != "migration/com-kastav-expenseflow" ]; then
+            echo "::error ::Unexpected checked-out branch '$CURRENT_BRANCH'."
+            exit 1
+          fi
+
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error ::Working tree is not clean. Stopping safely."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$EXPECTED_ORIG_PARENT" HEAD; then
+            echo "::error ::Expected parent commit $EXPECTED_ORIG_PARENT is not an ancestor of HEAD."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$EXPECTED_BASE_COMMIT" HEAD; then
+            echo "::error ::Expected commit $EXPECTED_BASE_COMMIT is not an ancestor of HEAD."
+            exit 1
+          fi
+
+          if git log --format='%s' HEAD | grep -Fxq "$PATCH_SUBJECT"; then
+            if [ -f "$PATCH_FILE" ]; then
+              echo "::error ::Migration commit is already present, yet $PATCH_FILE still exists. Stopping safely for manual inspection."
+              exit 1
+            fi
+            echo "already_applied=true" >> "$GITHUB_OUTPUT"
+            echo "::notice ::Premium migration commit is already applied and $PATCH_FILE is already removed. Skipping patch application."
+            exit 0
+          fi
+
+          UNEXPECTED_FILES=$(git diff --name-only "$EXPECTED_BASE_COMMIT"..HEAD | grep -vxF '.github/workflows/apply-migration-patch.yml' || true)
+          if [ -n "$UNEXPECTED_FILES" ]; then
+            echo "::error ::Unexpected commits/files detected after $EXPECTED_BASE_COMMIT: $UNEXPECTED_FILES"
+            exit 1
+          fi
+
+          if [ ! -f "$PATCH_FILE" ]; then
+            echo "::error ::Required patch file $PATCH_FILE not found at repository root."
+            exit 1
+          fi
+
+          ACTUAL_SHA256=$(sha256sum "$PATCH_FILE" | awk '{print $1}')
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_PATCH_SHA256" ]; then
+            echo "::error ::SHA-256 mismatch for $PATCH_FILE. Expected $EXPECTED_PATCH_SHA256, got $ACTUAL_SHA256."
+            exit 1
+          fi
+
+          echo "already_applied=false" >> "$GITHUB_OUTPUT"
+          echo "::notice ::Verified commit ancestry ($EXPECTED_BASE_COMMIT) and SHA-256 ($ACTUAL_SHA256)."
+
+      - name: Apply patch safely once and remove temporary patch file
+        if: steps.verify_state.outputs.already_applied == 'false'
+        run: |
+          PATCH_FILE="expenseflow_migration_premium.patch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git am --3way --whitespace=nowarn "$PATCH_FILE"; then
+            echo "::error ::Patch application failed or conflicted. Aborting cleanly without pushing."
+            git am --abort || true
+            exit 1
+          fi
+
+          if ! git ls-files --error-unmatch "$PATCH_FILE" >/dev/null 2>&1; then
+            echo "::error ::$PATCH_FILE is not tracked after git am. Stopping safely."
+            exit 1
+          fi
+
+          git rm "$PATCH_FILE"
+          git commit -m "Remove temporary migration patch file after applying"
+
+          if [ -e "$PATCH_FILE" ]; then
+            echo "::error ::$PATCH_FILE still exists after removal."
+            exit 1
+          fi
+
+      - name: Setup Node.js 22
+        if: steps.verify_state.outputs.already_applied == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        if: steps.verify_state.outputs.already_applied == 'false'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (frozen lockfile)
+        if: steps.verify_state.outputs.already_applied == 'false'
+        run: bun install --frozen-lockfile
+
+      - name: Run lint, all tests, and production build
+        if: steps.verify_state.outputs.already_applied == 'false'
+        run: |
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Verify clean repository tree before push
+        if: steps.verify_state.outputs.already_applied == 'false'
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error ::Working tree became dirty during checks. Refusing to push."
+            git status --short
+            exit 1
+          fi
+
+      - name: Normal non-force push to migration/com-kastav-expenseflow
+        if: steps.verify_state.outputs.already_applied == 'false'
+        run: |
+          git fetch origin migration/com-kastav-expenseflow
+          REMOTE_SHA=$(git rev-parse origin/migration/com-kastav-expenseflow)
+          if ! git merge-base --is-ancestor "$REMOTE_SHA" HEAD; then
+            echo "::error ::Remote branch moved ($REMOTE_SHA is not an ancestor of HEAD). Stopping safely without force-pushing."
+            exit 1
+          fi
+          git push origin HEAD:refs/heads/migration/com-kastav-expenseflow
+          echo "::notice ::Successfully pushed $(git rev-parse HEAD) to migration/com-kastav-expenseflow."
