@@ -1,0 +1,69 @@
+{
+  "project_info": {
+    "project_number": "328236928675",
+    "firebase_url": "https://expenseflow-ad899-default-rtdb.firebaseio.com",
+    "project_id": "expenseflow-ad899",
+    "storage_bucket": "expenseflow-ad899.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:328236928675:android:71b91a6e65fa3cc3cb3916",
+        "android_client_info": {
+          "package_name": "com.expenseflow.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "328236928675-jno332t7b67un3scg63t4qlp0u4o4mj6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABW2cH5e8bUyN5bDCu1LMnkjoFj9Jsd6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "328236928675-jno332t7b67un3scg63t4qlp0u4o4mj6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:328236928675:android:cef311483be16cedcb3916",
+        "android_client_info": {
+          "package_name": "com.kastav.expenseflow"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "328236928675-jno332t7b67un3scg63t4qlp0u4o4mj6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABW2cH5e8bUyN5bDCu1LMnkjoFj9Jsd6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "328236928675-jno332t7b67un3scg63t4qlp0u4o4mj6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
