@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.expenseflow.app',
+  appId: 'com.kastav.expenseflow',
   appName: 'ExpenseFlow',
   webDir: 'dist',
   server: {
