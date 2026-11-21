@@ -1,8 +1,6 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // Global Safety Net: Default-deny all public access across the database
     match /{document=**} {
       allow read, write: if false;
@@ -10,32 +8,44 @@ service cloud.firestore {
 
     /**
      * Premium Waitlist Collection:
-     * Stores customer emails, consent status, and pricing preferences for ExpenseFlow Premium.
-     *
-     * SECURITY INVARIANT:
-     * - ZERO client-side reads: Prevents competitors or unauthorized users from scraping subscriber emails.
-     * - ZERO client-side direct writes: Enforces server-side validation, duplicate prevention, RFC compliance,
-     *   and rate-limiting through Firebase Admin SDK in Cloud Functions / secure backend proxy.
+     * Accessed strictly via Firebase Admin SDK on the Express backend.
      */
     match /premium_waitlist/{waitlistId} {
       allow read, write: if false;
     }
 
     /**
-     * Backend-Only Billing Entitlements, Token Index, RTDN Ledger & AI Quotas:
+     * Backend-Only Billing Entitlements, User Entitlement Index, Token Index, RTDN Ledger & AI Quotas:
      * Accessed strictly via Firebase Admin SDK on the Express backend.
-     * Clients NEVER read or write billing or quota documents directly.
+     * Clients NEVER read or write billing, entitlement, or quota documents directly.
      */
     match /billing_entitlements/{tokenHash} {
       allow read, write: if false;
     }
+
+    match /user_entitlements/{uidHash} {
+      allow read, write: if false;
+    }
+
     match /billing_token_index/{tokenId} {
       allow read, write: if false;
     }
+
     match /rtdn_notifications/{messageId} {
       allow read, write: if false;
     }
+
     match /ai_usage_quotas/{subjectKey} {
+      allow read, write: if false;
+    }
+
+    /**
+     * User-Scoped Cloud Sync & Backup Documents:
+     * Accessed exclusively via Firebase Admin SDK routes (/api/cloud-sync/*)
+     * after verifying both Firebase ID Token AND active Google Play Premium entitlement.
+     * Direct client-SDK reads/writes are blocked so unverified/free clients cannot bypass Premium gating.
+     */
+    match /users/{userId}/cloud_sync/{docId} {
       allow read, write: if false;
     }
   }

@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { trackEvent } from '../services/analytics';
 import { PremiumFeatureId } from '../types/premium';
+import { AuthUser } from '../services/authService';
+import { getCurrentUserPlanTier } from '../utils/premium';
+import { useStageAvailability } from '../utils/stageAvailability';
 import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
 interface PurchasePlannerProps {
@@ -32,6 +35,9 @@ interface PurchasePlannerProps {
   planErrorMessage?: string | null;
   monthlyBudget?: number;
   onOpenUpgrade?: (feature?: PremiumFeatureId) => void;
+  onOpenAiCoach?: () => void;
+  authUser?: AuthUser | null;
+  onRequireAuth?: (msg?: string) => void;
 }
 
 export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
@@ -42,7 +48,12 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
   planErrorMessage,
   monthlyBudget = 0,
   onOpenUpgrade,
+  onOpenAiCoach,
+  authUser,
+  onRequireAuth,
 }) => {
+  const stageAvailability = useStageAvailability(true);
+  const isPremium = Boolean(authUser) && getCurrentUserPlanTier() === 'premium';
   // Load saved plan from props or storage on initial mount
   const [initialData] = useState<PlanData>(() => initialPlan || loadStoredPlan());
 
@@ -809,7 +820,7 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
             </div>
           </div>
 
-          {/* AI Purchase Advice (Stage 2 Teaser) */}
+          {/* AI Purchase Advice Card */}
           <div className="bg-gradient-to-br from-teal-50/60 to-amber-50/50 rounded-2xl border border-amber-200/80 p-4 text-xs space-y-2.5 shadow-2xs">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
@@ -817,22 +828,50 @@ export const PurchasePlanner: React.FC<PurchasePlannerProps> = ({
                 <span>AI Spending Coach Advice</span>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
-                Stage 2 · Coming Later
+                {!stageAvailability.aiCoachEnabled
+                  ? 'Backend Offline'
+                  : isPremium
+                  ? 'Premium Active'
+                  : 'Premium'}
               </span>
             </div>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Conversational AI cash-flow advice is a planned Stage 2 Premium feature ($14.99/mo or $109.99/yr) and is unavailable in this Stage 1 offline-first build. Your local affordability calculation above is 100% free.
+              {!stageAvailability.aiCoachEnabled
+                ? 'Live AI Coach guidance requires an online ExpenseFlow AI backend connection. Your local affordability calculator above remains 100% free offline.'
+                : !authUser
+                ? 'Sign in with your ExpenseFlow account to evaluate whether this purchase fits your monthly cash-flow pace with AI Spending Coach.'
+                : isPremium
+                ? 'Ask ExpenseFlow AI Spending Coach how this proposed purchase impacts your remaining daily allowance and budget velocity.'
+                : 'Unlock conversational AI purchase advice, anomaly recommendations, and cash-flow forecasts with ExpenseFlow Premium ($14.99/mo or $109.99/yr).'}
             </p>
-            {onOpenUpgrade && (
+            {stageAvailability.aiCoachEnabled && !authUser && onRequireAuth ? (
+              <button
+                type="button"
+                onClick={() => onRequireAuth('Sign in to access AI Spending Coach purchase advice.')}
+                className="w-full py-2.5 px-3 bg-[#142D4E] hover:bg-[#1E3E66] rounded-xl text-white font-bold text-xs transition-all shadow-2xs min-h-[44px] cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>Sign In for AI Advice</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : stageAvailability.aiCoachEnabled && isPremium && onOpenAiCoach ? (
+              <button
+                type="button"
+                onClick={() => onOpenAiCoach()}
+                className="w-full py-2.5 px-3 bg-teal-600 hover:bg-teal-700 rounded-xl text-white font-bold text-xs transition-all shadow-2xs min-h-[44px] cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>Ask AI Spending Coach</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : onOpenUpgrade ? (
               <button
                 type="button"
                 onClick={() => onOpenUpgrade('ai_spending_coach')}
                 className="w-full py-2.5 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-amber-300 rounded-xl text-amber-950 font-bold text-xs transition-all shadow-2xs min-h-[44px] cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>View Stage 2 Plans</span>
+                <span>{stageAvailability.aiCoachEnabled ? 'Upgrade to Premium' : 'Check AI & Plan Status'}</span>
                 <ArrowRight className="w-3.5 h-3.5 text-amber-600" />
               </button>
-            )}
+            ) : null}
           </div>
 
           {/* Mandatory Transparent Disclaimer Banner */}

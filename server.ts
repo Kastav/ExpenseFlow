@@ -3,17 +3,31 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { handleCoachStatus, createCoachChatHandler, CoachRouteDeps } from './src/server/aiCoachRoute.ts';
+import {
+  handleCoachStatus,
+  createCoachChatHandler,
+  createAiRecommendationsHandler,
+  createAdvancedAiInsightsHandler,
+  CoachRouteDeps,
+} from './src/server/aiCoachRoute.ts';
 import {
   handleBillingStatus,
   createVerifyPurchaseHandler,
   createRtdnHandler,
+  createMyEntitlementHandler,
   isPlayBillingConfigured,
   isRtdnConfigured,
   BillingVerificationDeps,
 } from './src/server/playBillingVerification.ts';
 import { getEntitlementStoreStatus } from './src/server/entitlementStore.ts';
-import { isFirebaseAdminConfigured } from './src/server/firebaseAdmin.ts';
+import { getAdminFirestore, isFirebaseAdminConfigured } from './src/server/firebaseAdmin.ts';
+import {
+  CloudSyncRouteDeps,
+  createCloudSyncStatusHandler,
+  createCloudSyncGetHandler,
+  createCloudSyncPutHandler,
+  createCloudSyncRestorePreviousHandler,
+} from './src/server/cloudSyncRoute.ts';
 
 dotenv.config();
 
@@ -77,6 +91,8 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 export interface CreateAppOptions {
   billingDeps?: BillingVerificationDeps;
   coachDeps?: CoachRouteDeps;
+  cloudSyncDeps?: CloudSyncRouteDeps;
+  checkFirestoreConnectivity?: () => Promise<boolean>;
   disableVite?: boolean;
 }
 
@@ -85,7 +101,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
-  app.use(express.json({ limit: '64kb' }));
+  app.use(express.json({ limit: '256kb' }));
 
   // Baseline Security & CORS Headers Middleware (strict allowlist, no wildcard *)
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -102,7 +118,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
       res.setHeader('Vary', 'Origin');
     }
 
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Content-Type, Authorization, X-Requested-With, X-ExpenseFlow-Entitlement-Tier, X-Client-Device-ID'
@@ -139,6 +155,61 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
   app.get('/health', handleHealthCheck);
   app.get('/api/health', handleHealthCheck);
 
+  app.get('/api/ready', async (_req: Request, res: Response) => {
+    const storeStatus = getEntitlementStoreStatus();
+    const isProd = (process.env.NODE_ENV ?? '').trim().toLowerCase() === 'production';
+    const rawBackend = (process.env.ENTITLEMENT_STORE_BACKEND ?? '').trim().toLowerCase();
+    const needsFirestore = isProd || rawBackend === 'firestore';
+
+    if (!storeStatus.ready || (isProd && !isFirebaseAdminConfigured())) {
+      res.status(503).json({
+        ready: false,
+        persistenceBackend: storeStatus.backend,
+        firestoreConnected: false,
+        firebaseAdminConfigured: isFirebaseAdminConfigured(),
+      });
+      return;
+    }
+
+    let firestoreConnected = !needsFirestore;
+    if (needsFirestore) {
+      try {
+        if (options.checkFirestoreConnectivity) {
+          firestoreConnected = await options.checkFirestoreConnectivity();
+        } else {
+          const db = await getAdminFirestore();
+          if (db) {
+            await db.collection('billing_entitlements').limit(1).get();
+            firestoreConnected = true;
+          } else {
+            firestoreConnected = false;
+          }
+        }
+      } catch {
+        firestoreConnected = false;
+      }
+    }
+
+    if (!firestoreConnected) {
+      res.status(503).json({
+        ready: false,
+        persistenceBackend: storeStatus.backend,
+        firestoreConnected: false,
+        firebaseAdminConfigured: isFirebaseAdminConfigured(),
+      });
+      return;
+    }
+
+    res.status(200).json({
+      ready: true,
+      persistenceBackend: storeStatus.backend,
+      firestoreConnected: true,
+      firebaseAdminConfigured: isFirebaseAdminConfigured(),
+      playBillingConfigured: isPlayBillingConfigured(),
+      coachAvailable: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    });
+  });
+
   // Permanent public Privacy Policy and Account Deletion endpoints
   const publicPrivacyPath = path.join(__dirname, 'public', 'privacy.html');
   app.get('/privacy.html', (_req: Request, res: Response) => {
@@ -158,14 +229,27 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Express
     res.status(404).type('text/plain').send('Account deletion page not found.');
   });
 
-  // AI Spending Coach Endpoints (Server-side Gemini proxy)
+  // AI Spending Coach, Recommendations & Advanced AI Insights Endpoints (Server-side Gemini proxy)
   app.get('/api/coach/status', handleCoachStatus);
   app.post('/api/coach/chat', createCoachChatHandler(options.coachDeps));
+  app.post('/api/coach/recommendations', createAiRecommendationsHandler(options.coachDeps));
+  app.post('/api/coach/insights', createAdvancedAiInsightsHandler(options.coachDeps));
 
-  // Google Play In-App Billing Verification & RTDN Endpoints
+  // Google Play In-App Billing Verification, Entitlement Lookup & RTDN Endpoints
   app.get('/api/billing/status', handleBillingStatus);
   app.post('/api/billing/verify', createVerifyPurchaseHandler(options.billingDeps));
   app.post('/api/billing/rtdn', createRtdnHandler(options.billingDeps));
+  app.get('/api/entitlements/me', createMyEntitlementHandler(options.billingDeps));
+
+  // Premium-Only Cloud Sync & Backup Endpoints (UID & entitlement verified server-side)
+  const cloudSyncDeps: CloudSyncRouteDeps = options.cloudSyncDeps || {
+    store: options.billingDeps?.store,
+    verifyCallerToken: options.billingDeps?.verifyCallerToken,
+  };
+  app.get('/api/cloud-sync/status', createCloudSyncStatusHandler(cloudSyncDeps));
+  app.get('/api/cloud-sync/snapshot', createCloudSyncGetHandler(cloudSyncDeps));
+  app.put('/api/cloud-sync/snapshot', createCloudSyncPutHandler(cloudSyncDeps));
+  app.post('/api/cloud-sync/restore-previous', createCloudSyncRestorePreviousHandler(cloudSyncDeps));
 
   if (options.disableVite) {
     return app;

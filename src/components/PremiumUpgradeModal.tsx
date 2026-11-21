@@ -253,7 +253,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
             </span>
             <span className="text-xs text-teal-200 font-medium">
               {!stageAvailability.purchasesEnabled
-                ? 'Stage 2 · Coming Later'
+                ? 'Billing Backend Offline'
                 : isLiveFromPlayStore
                 ? 'Google Play Connected'
                 : 'Google Play Billing'}
@@ -446,8 +446,19 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
                 <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-teal-50/20 gap-1">
                   <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E] min-w-0">
+                    Advanced AI Insights &amp; Forecasts
+                    <span className="block text-[10px] text-slate-500 font-normal">Cash-flow projections &amp; recurring leaks</span>
+                  </div>
+                  <div className="col-span-3 sm:col-span-2 text-center text-slate-300 font-bold">—</div>
+                  <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-0.5 text-[11px]">
+                    <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span>Included</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-12 p-2.5 sm:p-3 items-center bg-teal-50/20 gap-1">
+                  <div className="col-span-6 sm:col-span-7 font-medium text-[#142D4E] min-w-0">
                     Multi-Device Cloud Sync &amp; Backup
-                    <span className="block text-[10px] text-slate-500 font-normal">Encrypted off-device backup</span>
+                    <span className="block text-[10px] text-slate-500 font-normal">User-scoped backup &amp; conflict merge</span>
                   </div>
                   <div className="col-span-3 sm:col-span-2 text-center text-slate-300 font-bold">—</div>
                   <div className="col-span-3 text-center text-teal-700 font-bold flex items-center justify-center gap-0.5 text-[11px]">
@@ -465,21 +476,21 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-teal-700 shrink-0" />
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  {stageAvailability.purchasesEnabled ? 'Subscribe with Google Play' : 'Stage 1 Offline-First Core Build'}
+                  {stageAvailability.purchasesEnabled ? 'Subscribe with Google Play' : 'Offline-First Core Active'}
                 </h4>
               </div>
               <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md">
                 {stageAvailability.purchasesEnabled
                   ? `${currentProduct.formattedPrice} ${cycle === 'monthly' ? '/mo' : '/yr'}`
-                  : 'Stage 2 Planned'}
+                  : 'Backend Offline'}
               </span>
             </div>
 
             {!stageAvailability.purchasesEnabled ? (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1.5">
-                <p className="font-bold">Premium Purchases Not Active in Stage 1</p>
+                <p className="font-bold">Verification Backend Offline</p>
                 <p className="text-[11px] text-amber-900 leading-relaxed">
-                  All core ExpenseFlow features—local expense logging, monthly budgets, daily burn rate, affordability planner, insights charts, voice entry, and CSV export—are <strong>100% free right now</strong>. In-app Google Play subscriptions, AI Spending Coach, and cloud sync will activate later in Stage 2.
+                  {stageAvailability.billingReason}
                 </p>
               </div>
             ) : (
@@ -516,7 +527,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
               {!stageAvailability.purchasesEnabled ? (
                 <>
                   <Lock className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Unavailable in Stage 1 — Coming Later</span>
+                  <span className="truncate">Billing Backend Offline</span>
                 </>
               ) : isPurchasing ? (
                 <>

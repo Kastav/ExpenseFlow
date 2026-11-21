@@ -41,12 +41,20 @@
         "status": {
           "type": "string",
           "description": "Lifecycle status of the waitlist subscriber.",
-          "enum": ["pending", "confirmed", "unsubscribed"]
+          "enum": [
+            "pending",
+            "confirmed",
+            "unsubscribed"
+          ]
         },
         "selectedPlan": {
           "type": "string",
           "description": "Plan tier interest expressed by subscriber at time of registration.",
-          "enum": ["monthly", "annual", "undecided"]
+          "enum": [
+            "monthly",
+            "annual",
+            "undecided"
+          ]
         }
       },
       "required": [
@@ -64,28 +72,93 @@
       "description": "Server-managed verified subscription entitlement keyed by SHA-256 hash of Google Play purchase token (raw tokens are never stored).",
       "type": "object",
       "properties": {
-        "tokenHash": { "type": "string" },
-        "tokenId": { "type": "string" },
-        "userId": { "type": ["string", "null"] },
-        "ownershipStatus": { "type": "string", "enum": ["bound", "unbound"] },
-        "obfuscatedAccountId": { "type": "string" },
-        "productId": { "type": "string", "enum": ["expenseflow_premium_monthly", "expenseflow_premium_annual", ""] },
-        "latestOrderId": { "type": "string" },
-        "subscriptionState": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "expired", "pending", "canceled", "revoked", "on_hold", "paused"] },
-        "expiryTimeMillis": { "type": "number" },
-        "autoRenewing": { "type": "boolean" },
-        "cancelAtPeriodEnd": { "type": "boolean" },
-        "acknowledged": { "type": "boolean" },
-        "revoked": { "type": "boolean" },
-        "revokedAt": { "type": "number" },
-        "lastRtdnEventTimeMillis": { "type": "number" },
-        "pendingClaim": { "type": "boolean" },
-        "pendingClaimAt": { "type": "number" },
-        "pendingClaimUserId": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" },
-        "lastVerifiedAt": { "type": "number" }
+        "tokenHash": {
+          "type": "string"
+        },
+        "tokenId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownershipStatus": {
+          "type": "string",
+          "enum": [
+            "bound",
+            "unbound"
+          ]
+        },
+        "obfuscatedAccountId": {
+          "type": "string"
+        },
+        "productId": {
+          "type": "string",
+          "enum": [
+            "expenseflow_premium_monthly",
+            "expenseflow_premium_annual",
+            ""
+          ]
+        },
+        "latestOrderId": {
+          "type": "string"
+        },
+        "subscriptionState": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "expired",
+            "pending",
+            "canceled",
+            "revoked",
+            "on_hold",
+            "paused"
+          ]
+        },
+        "expiryTimeMillis": {
+          "type": "number"
+        },
+        "autoRenewing": {
+          "type": "boolean"
+        },
+        "cancelAtPeriodEnd": {
+          "type": "boolean"
+        },
+        "acknowledged": {
+          "type": "boolean"
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "revokedAt": {
+          "type": "number"
+        },
+        "lastRtdnEventTimeMillis": {
+          "type": "number"
+        },
+        "pendingClaim": {
+          "type": "boolean"
+        },
+        "pendingClaimAt": {
+          "type": "number"
+        },
+        "pendingClaimUserId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "lastVerifiedAt": {
+          "type": "number"
+        }
       },
       "required": [
         "tokenHash",
@@ -109,42 +182,169 @@
       "description": "Lookup index mapping 16-char tokenId to hashed purchase tokenHash and authenticated userId (null while unbound).",
       "type": "object",
       "properties": {
-        "tokenHash": { "type": "string" },
-        "userId": { "type": ["string", "null"] },
-        "ownershipStatus": { "type": "string", "enum": ["bound", "unbound"] },
-        "productId": { "type": "string" },
-        "updatedAt": { "type": "number" }
+        "tokenHash": {
+          "type": "string"
+        },
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownershipStatus": {
+          "type": "string",
+          "enum": [
+            "bound",
+            "unbound"
+          ]
+        },
+        "productId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
       },
-      "required": ["tokenHash", "userId", "productId", "updatedAt"]
+      "required": [
+        "tokenHash",
+        "userId",
+        "productId",
+        "updatedAt"
+      ]
     },
     "RtdnNotification": {
       "title": "RTDN Notification",
       "description": "Idempotency and processing lease ledger deduplicating Google Play Real-Time Developer Notifications by Pub/Sub messageId.",
       "type": "object",
       "properties": {
-        "messageId": { "type": "string" },
-        "eventType": { "type": ["string", "null"] },
-        "status": { "type": "string", "enum": ["processing", "completed", "failed"] },
-        "leaseExpiresAt": { "type": "number" },
-        "attempts": { "type": "number" },
-        "lastError": { "type": ["string", "null"] },
-        "processedAt": { "type": "number" },
-        "completedAt": { "type": "number" },
-        "updatedAt": { "type": "number" }
+        "messageId": {
+          "type": "string"
+        },
+        "eventType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "processing",
+            "completed",
+            "failed"
+          ]
+        },
+        "leaseExpiresAt": {
+          "type": "number"
+        },
+        "attempts": {
+          "type": "number"
+        },
+        "lastError": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processedAt": {
+          "type": "number"
+        },
+        "completedAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
       },
-      "required": ["messageId", "status", "attempts", "processedAt", "updatedAt"]
+      "required": [
+        "messageId",
+        "status",
+        "attempts",
+        "processedAt",
+        "updatedAt"
+      ]
     },
     "AiUsageQuota": {
       "title": "AI Usage Quota",
       "description": "Durable per-subscription AI Spending Coach rate limit and monthly quota tracker.",
       "type": "object",
       "properties": {
-        "monthKey": { "type": "string" },
-        "monthlyCount": { "type": "number" },
-        "recentTimestamps": { "type": "array", "items": { "type": "number" } },
-        "updatedAt": { "type": "number" }
+        "monthKey": {
+          "type": "string"
+        },
+        "monthlyCount": {
+          "type": "number"
+        },
+        "recentTimestamps": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "updatedAt": {
+          "type": "number"
+        }
       },
-      "required": ["monthKey", "monthlyCount", "recentTimestamps", "updatedAt"]
+      "required": [
+        "monthKey",
+        "monthlyCount",
+        "recentTimestamps",
+        "updatedAt"
+      ]
+    },
+    "UserEntitlementIndex": {
+      "title": "User Entitlement Index",
+      "description": "Backend-only index mapping SHA-256(uid) to active Play Billing entitlement tokenHash.",
+      "type": "object",
+      "properties": {
+        "tokenHash": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "tokenHash",
+        "userId",
+        "updatedAt"
+      ]
+    },
+    "CloudSyncSnapshotDoc": {
+      "title": "Cloud Sync Snapshot Document",
+      "description": "Backend-only Premium user-scoped cloud backup snapshot isolated by Firebase UID.",
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number"
+        },
+        "revision": {
+          "type": "number"
+        },
+        "snapshot": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "idempotencyKey": {
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "revision",
+        "snapshot",
+        "updatedAt",
+        "idempotencyKey",
+        "payloadHash"
+      ]
     }
   },
   "firestore": {
@@ -167,6 +367,14 @@
     "/ai_usage_quotas/{subjectKey}": {
       "schema": "AiUsageQuota",
       "description": "Backend-only durable rate-limit and monthly AI quota counters."
+    },
+    "/user_entitlements/{uidHash}": {
+      "schema": "UserEntitlementIndex",
+      "description": "Backend-only user entitlement lookup index."
+    },
+    "/users/{userId}/cloud_sync/{docId}": {
+      "schema": "CloudSyncSnapshotDoc",
+      "description": "Backend-only Premium user-scoped Cloud Sync snapshot, pre-overwrite backup, and rate limit state."
     }
   }
 }

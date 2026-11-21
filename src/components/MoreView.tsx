@@ -34,9 +34,26 @@ import {
   LogIn,
   LogOut,
   X,
+  RefreshCw,
+  RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { PremiumFeatureId } from '../types/premium';
 import { AuthUser } from '../services/authService';
+import { getCurrentUserPlanTier } from '../utils/premium';
+import { useStageAvailability } from '../utils/stageAvailability';
+import {
+  CloudSyncPreview,
+  CloudSyncLocalMeta,
+  PreSyncRecoveryBackup,
+  getCloudSyncLocalMeta,
+  getPreSyncRecoveryBackup,
+  performSmartCloudSync,
+  previewCloudSync,
+  pullAndApplyCloudBackup,
+  restorePreSyncRecoveryBackup,
+  restorePreviousCloudRevision,
+} from '../utils/cloudSyncClient';
 import { getAnalyticsConsent, setAnalyticsConsent } from '../services/analytics';
 import { useModalBackHandler, scrollInputIntoViewOnFocus } from '../utils/backNavigation';
 
@@ -50,7 +67,9 @@ interface MoreViewProps {
   onOpenPrivacyPolicy?: () => void;
   authUser?: AuthUser | null;
   onOpenAuth?: () => void;
+  onRequireAuth?: (msg?: string) => void;
   onSignOut?: () => Promise<void> | void;
+  onCloudSyncApplied?: () => void;
 }
 
 export const MoreView: React.FC<MoreViewProps> = ({
@@ -63,8 +82,132 @@ export const MoreView: React.FC<MoreViewProps> = ({
   onOpenPrivacyPolicy,
   authUser,
   onOpenAuth,
+  onRequireAuth,
   onSignOut,
+  onCloudSyncApplied,
 }) => {
+  const stageAvailability = useStageAvailability(true);
+  const isPremium = Boolean(authUser) && getCurrentUserPlanTier() === 'premium';
+  const [syncMeta, setSyncMeta] = useState<CloudSyncLocalMeta | null>(() => getCloudSyncLocalMeta());
+  const [recoveryBackup, setRecoveryBackup] = useState<PreSyncRecoveryBackup | null>(() =>
+    getPreSyncRecoveryBackup()
+  );
+  const [syncPreview, setSyncPreview] = useState<CloudSyncPreview | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+
+  const handleCloudSmartSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await performSmartCloudSync('merge_newest');
+      setSyncMeta(getCloudSyncLocalMeta());
+      setRecoveryBackup(getPreSyncRecoveryBackup());
+      setSyncPreview(null);
+      onCloudSyncApplied?.();
+      const conflictNote =
+        result.diff.conflictingTransactionIds.length > 0
+          ? ` Resolved ${result.diff.conflictingTransactionIds.length} edited conflict(s) using latest timestamps.`
+          : '';
+      setSyncMessage({
+        type: 'success',
+        text: `Cloud backup synced (revision #${result.revision}, ${result.snapshot.transactions.length} transactions).${conflictNote}`,
+      });
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Unable to sync with cloud backup right now.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handlePreviewCloudSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const preview = await previewCloudSync();
+      setSyncPreview(preview);
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Unable to inspect cloud backup state.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handlePullCloudBackup = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const restored = await pullAndApplyCloudBackup();
+      setSyncMeta(getCloudSyncLocalMeta());
+      setRecoveryBackup(getPreSyncRecoveryBackup());
+      setSyncPreview(null);
+      onCloudSyncApplied?.();
+      setSyncMessage({
+        type: 'success',
+        text: `Restored cloud backup revision #${restored.revision} (${restored.snapshot.transactions.length} transactions). Pre-sync local snapshot retained for safety.`,
+      });
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Unable to restore cloud backup.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleRestorePreviousCloud = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const restored = await restorePreviousCloudRevision();
+      setSyncMeta(getCloudSyncLocalMeta());
+      setRecoveryBackup(getPreSyncRecoveryBackup());
+      setSyncPreview(null);
+      onCloudSyncApplied?.();
+      setSyncMessage({
+        type: 'success',
+        text: `Rolled back to previous cloud backup revision (#${restored.revision}, ${restored.snapshot.transactions.length} transactions).`,
+      });
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Unable to restore previous cloud backup.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleRestoreLocalPreSync = () => {
+    try {
+      const backup = restorePreSyncRecoveryBackup();
+      setRecoveryBackup(getPreSyncRecoveryBackup());
+      onCloudSyncApplied?.();
+      setSyncMessage({
+        type: 'info',
+        text: `Restored local device data saved ${backup.reason} (${backup.snapshot.transactions.length} transactions).`,
+      });
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'No pre-sync local recovery backup found.',
+      });
+    }
+  };
   const [exportStatus, setExportStatus] = useState<'success' | 'error' | 'empty' | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportResult, setExportResult] = useState<{
@@ -246,24 +389,29 @@ export const MoreView: React.FC<MoreViewProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
                 <Sparkles className="w-3 h-3 fill-current" />
-                Stage 2 · Coming Later
+                {isPremium
+                  ? 'Premium Active'
+                  : stageAvailability.purchasesEnabled
+                  ? 'Google Play Billing'
+                  : 'Offline Core Mode'}
               </span>
-              <span className="text-xs text-teal-200 font-semibold">Planned: $14.99/mo or $109.99/yr</span>
+              <span className="text-xs text-teal-200 font-semibold">$14.99/mo or $109.99/yr</span>
             </div>
             <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-              ExpenseFlow Premium Packaging &amp; AI
+              ExpenseFlow Premium &amp; AI Suite
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-              Core local tracking, budgets, velocity, and CSV exports are <strong>100% free</strong>. Cloud-hosted Premium add-ons (AI Personal Spending Coach and multi-device cloud sync) are disabled in Stage 1 and planned for Stage 2.
+              {isPremium
+                ? 'Your Premium subscription is active: AI Personal Spending Coach, AI Recommendations, Advanced Cash-Flow Insights, and Multi-Device Cloud Sync are unlocked.'
+                : 'Core local tracking, budgets, velocity, and CSV exports are 100% free forever. Upgrade to Premium for Gemini AI coaching, anomaly recommendations, cash-flow forecasts, and multi-device cloud backup.'}
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => onOpenUpgrade?.()}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#142D4E] hover:bg-slate-100 font-bold text-xs shadow-sm transition-all cursor-pointer shrink-0 min-h-[44px] active:scale-[0.98]"
           >
-            <span>View Stage 2 Plans</span>
+            <span>{isPremium ? 'Manage Subscription' : 'View Premium Plans'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -587,7 +735,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
         </div>
       </div>
 
-      {/* Cloud Sync & Multi-Device Backup (Premium Feature Notice) */}
+      {/* Cloud Sync & Multi-Device Backup (Premium Feature) */}
       <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -596,35 +744,196 @@ export const MoreView: React.FC<MoreViewProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold text-[#142D4E]">Multi-Device Cloud Sync</h2>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  Stage 2 · Coming Later
+                <h2 className="text-base font-bold text-[#142D4E]">Multi-Device Cloud Sync &amp; Backup</h2>
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                    !stageAvailability.cloudSyncEnabled
+                      ? 'text-slate-700 bg-slate-100 border-slate-200'
+                      : isPremium
+                      ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                      : 'text-amber-800 bg-amber-50 border-amber-200'
+                  }`}
+                >
+                  {!stageAvailability.cloudSyncEnabled
+                    ? 'Backend Offline'
+                    : !authUser
+                    ? 'Sign In Required'
+                    : isPremium
+                    ? 'Premium Active'
+                    : 'Premium Feature'}
                 </span>
               </div>
               <p className="text-xs text-[#64748B] mt-0.5">
-                Optional encrypted multi-device sync planned for Stage 2 (not active in this offline-first build)
+                {syncMeta
+                  ? `Last synced: ${new Date(syncMeta.lastSyncedAt).toLocaleString()} (Rev #${syncMeta.lastSyncedRevision})`
+                  : 'User-scoped Firestore backup with conflict detection and local recovery snapshots'}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onOpenUpgrade?.('cloud_sync_backup')}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Stage 2 Info</span>
-          </button>
+          {!stageAvailability.cloudSyncEnabled ? (
+            <button
+              type="button"
+              onClick={() => onOpenUpgrade?.('cloud_sync_backup')}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Plan Details</span>
+            </button>
+          ) : !authUser ? (
+            <button
+              type="button"
+              onClick={() =>
+                onRequireAuth?.('Sign in with your ExpenseFlow account to access Cloud Sync & Backup.')
+              }
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#142D4E] hover:bg-[#1E3E66] text-white font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          ) : !isPremium ? (
+            <button
+              type="button"
+              onClick={() => onOpenUpgrade?.('cloud_sync_backup')}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px]"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Upgrade to Sync</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCloudSmartSync}
+              disabled={isSyncing}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition-colors cursor-pointer self-start sm:self-auto shrink-0 min-h-[44px] disabled:opacity-50"
+            >
+              {isSyncing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
+            </button>
+          )}
         </div>
 
-        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-2">
-          <p className="leading-relaxed">
-            Multi-device cloud synchronization requires live server and database infrastructure and is disabled in this Stage 1 offline-first release.
-          </p>
-          <p className="text-[11px] text-slate-500">
-            Use the <strong>Universal CSV Export</strong> above anytime for 100% free local backups.
-          </p>
-        </div>
+        {!stageAvailability.cloudSyncEnabled ? (
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-2">
+            <p className="leading-relaxed">{stageAvailability.cloudSyncReason}</p>
+            <p className="text-[11px] text-slate-500">
+              Use the <strong>Universal CSV Export</strong> above anytime for 100% free local backups.
+            </p>
+          </div>
+        ) : authUser && isPremium ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePreviewCloudSync}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#142D4E] text-xs font-semibold min-h-[44px] cursor-pointer disabled:opacity-50"
+              >
+                <Cloud className="w-3.5 h-3.5 text-teal-700" />
+                <span>Inspect Cloud &amp; Conflicts</span>
+              </button>
+              {recoveryBackup && (
+                <button
+                  type="button"
+                  onClick={handleRestoreLocalPreSync}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-950 text-xs font-semibold min-h-[44px] cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo Last Sync ({recoveryBackup.snapshot.transactions.length} tx)</span>
+                </button>
+              )}
+            </div>
+
+            {syncPreview && (
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-[#142D4E]">
+                    Cloud Revision #{syncPreview.remote.revision}
+                    {syncPreview.remote.updatedAt
+                      ? ` · ${new Date(syncPreview.remote.updatedAt).toLocaleString()}`
+                      : ' (No cloud backup yet)'}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Local: {syncPreview.local.transactions.length} tx · Cloud:{' '}
+                    {syncPreview.remote.snapshot?.transactions.length ?? 0} tx · Merged:{' '}
+                    {syncPreview.diff.combinedCount} tx
+                  </span>
+                </div>
+                {syncPreview.diff.conflictingTransactionIds.length > 0 && (
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                    {syncPreview.diff.conflictingTransactionIds.length} transaction(s) differ between this device and cloud. Smart Sync keeps the newest edit timestamp and saves a pre-sync local recovery snapshot.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCloudSmartSync}
+                    disabled={isSyncing}
+                    className="px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs cursor-pointer min-h-[40px]"
+                  >
+                    Smart Merge &amp; Upload
+                  </button>
+                  {syncPreview.remote.snapshot && (
+                    <button
+                      type="button"
+                      onClick={handlePullCloudBackup}
+                      disabled={isSyncing}
+                      className="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-[#142D4E] font-semibold text-xs cursor-pointer min-h-[40px]"
+                    >
+                      Restore Cloud Snapshot to Device
+                    </button>
+                  )}
+                  {syncPreview.remote.hasPreviousBackup && (
+                    <button
+                      type="button"
+                      onClick={handleRestorePreviousCloud}
+                      disabled={isSyncing}
+                      className="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold text-xs cursor-pointer min-h-[40px]"
+                    >
+                      Rollback Cloud to Rev #{syncPreview.remote.previousRevision}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {syncMessage && (
+              <div
+                role="status"
+                className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                  syncMessage.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : syncMessage.type === 'info'
+                    ? 'bg-slate-50 border-slate-200 text-slate-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                {syncMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                )}
+                <span>{syncMessage.text}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs text-slate-600 space-y-1.5">
+            <p className="leading-relaxed">
+              {!authUser
+                ? 'Sign in with your ExpenseFlow account to access user-scoped Cloud Sync & Backup.'
+                : 'Cloud Sync is gated server-side by an active ExpenseFlow Premium subscription so your backups stay isolated to your verified account.'}
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Your local data remains 100% private on this device and can be exported via CSV anytime.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Data Storage & Privacy Card */}
@@ -638,7 +947,7 @@ export const MoreView: React.FC<MoreViewProps> = ({
 
         <div className="p-4 bg-slate-50 rounded-xl border border-slate-20 text-xs sm:text-sm text-[#142D4E] leading-relaxed">
           <p className="font-medium">
-            Your expenses, budgets, and plans remain stored locally on this device. Optional sign-in uses Firebase Authentication only; Stage 1 does not upload your expense ledger to any cloud database.
+            Your expenses, budgets, and plans remain stored locally on this device by default. Cloud Sync uploads snapshots only when you explicitly sync with an active Premium account.
           </p>
         </div>
 

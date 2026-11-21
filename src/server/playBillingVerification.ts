@@ -32,6 +32,7 @@ import {
 } from './entitlementStore.ts';
 import {
   FIREBASE_PROJECT_ID,
+  isFirebaseAdminConfigured,
   verifyFirebaseIdToken,
 } from './firebaseAdmin.ts';
 
@@ -211,28 +212,37 @@ function isAllowedProductId(productId: string): boolean {
  * - tokenId (first 16 hex chars of SHA-256(purchaseToken))
  * Fails closed if secret is missing or insecure.
  */
-export function generateVerifiedEntitlementToken(
+export function generateVerifiedEntitlementTokenForTokenId(
   productId: string,
-  purchaseToken: string,
+  tokenId: string,
   expiryTimeMillis: number
 ): string {
   const secret = getSigningSecret();
   if (!secret) {
     throw new Error('FAIL_CLOSED: Entitlement signing secret is not configured on the server.');
   }
-
   if (!isAllowedProductId(productId)) {
     throw new Error(`Invalid productId for entitlement token: ${productId}`);
   }
+  if (!tokenId || !tokenId.trim()) {
+    throw new Error('tokenId is required to bind entitlement token.');
+  }
+  const cleanTokenId = tokenId.trim();
+  const payloadStr = `${APP_PACKAGE_NAME}:${productId}:${expiryTimeMillis}:${cleanTokenId}`;
+  const hmac = crypto.createHmac('sha256', secret).update(payloadStr).digest('hex').slice(0, 32);
+  return `play_sub_${productId}_${expiryTimeMillis}_${cleanTokenId}_${hmac}`;
+}
 
+export function generateVerifiedEntitlementToken(
+  productId: string,
+  purchaseToken: string,
+  expiryTimeMillis: number
+): string {
   if (!purchaseToken || !purchaseToken.trim()) {
     throw new Error('purchaseToken is required to bind entitlement token.');
   }
-
   const tokenId = getTokenIdFromHash(hashPurchaseToken(purchaseToken));
-  const payloadStr = `${APP_PACKAGE_NAME}:${productId}:${expiryTimeMillis}:${tokenId}`;
-  const hmac = crypto.createHmac('sha256', secret).update(payloadStr).digest('hex').slice(0, 32);
-  return `play_sub_${productId}_${expiryTimeMillis}_${tokenId}_${hmac}`;
+  return generateVerifiedEntitlementTokenForTokenId(productId, tokenId, expiryTimeMillis);
 }
 
 export interface ParsedEntitlementToken {
@@ -1425,3 +1435,102 @@ export function createRtdnHandler(deps: BillingVerificationDeps = {}) {
 }
 
 export const handleRtdnNotification = createRtdnHandler();
+
+
+/**
+ * Evaluates whether a stored purchase record represents an active, unrevoked,
+ * unexpired Premium entitlement bound to expectedUserId.
+ */
+export function isPurchaseRecordActivePremium(
+  record: StoredPurchaseRecord | null | undefined,
+  expectedUserId: string,
+  nowMs: number = Date.now()
+): boolean {
+  return Boolean(
+    record &&
+      record.userId === expectedUserId &&
+      record.ownershipStatus !== 'unbound' &&
+      !record.revoked &&
+      record.expiryTimeMillis > nowMs &&
+      (record.status === 'active' || record.status === 'canceled') &&
+      isAllowedProductId(record.productId)
+  );
+}
+
+/**
+ * GET /api/entitlements/me
+ * Returns the authenticated caller's server-verified Google Play entitlement.
+ * Never trusts client-supplied tier flags or headers.
+ */
+export function createMyEntitlementHandler(deps: BillingVerificationDeps = {}) {
+  return async function handleMyEntitlement(req: Request, res: Response): Promise<void> {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !deps.verifyCallerToken &&
+      !isFirebaseAdminConfigured()
+    ) {
+      res.status(503).json({
+        success: false,
+        status: 'configuration_required',
+        message: 'Firebase Admin authentication is not configured in production.',
+      });
+      return;
+    }
+
+    const bearer = extractBearerToken(req);
+    if (!bearer) {
+      res.status(401).json({ success: false, status: 'unauthorized' });
+      return;
+    }
+
+    const verifyCaller = deps.verifyCallerToken || defaultVerifyCallerToken;
+    const caller = await verifyCaller(bearer);
+    if (!caller || !caller.uid) {
+      res.status(401).json({ success: false, status: 'unauthorized' });
+      return;
+    }
+
+    let store: EntitlementStore;
+    try {
+      store = deps.store || (await getConfiguredEntitlementStore());
+    } catch {
+      res.status(503).json({ success: false, status: 'configuration_required' });
+      return;
+    }
+
+    if (!store.getPurchaseRecordByUserId) {
+      res.status(503).json({
+        success: false,
+        status: 'configuration_required',
+        message: 'User entitlement lookup is unavailable.',
+      });
+      return;
+    }
+
+    const nowMs = deps.now ? deps.now() : Date.now();
+    const record = await store.getPurchaseRecordByUserId(caller.uid);
+    const active = isPurchaseRecordActivePremium(record, caller.uid, nowMs);
+
+    let verifiedEntitlementToken: string | undefined;
+    if (active && record && getSigningSecret()) {
+      verifiedEntitlementToken = generateVerifiedEntitlementTokenForTokenId(
+        record.productId,
+        record.tokenId,
+        record.expiryTimeMillis
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      tier: active ? 'premium' : 'free',
+      premium: active,
+      status: active && record ? record.status : record?.revoked ? 'revoked' : record ? 'expired' : 'inactive',
+      expiresAt: active && record ? new Date(record.expiryTimeMillis).toISOString() : null,
+      expiryTimeMillis: active && record ? record.expiryTimeMillis : null,
+      productId: active && record ? record.productId : null,
+      autoRenewing: active && record ? Boolean(record.autoRenewing) : false,
+      cancelAtPeriodEnd: active && record ? Boolean(record.cancelAtPeriodEnd) : false,
+      ...(verifiedEntitlementToken ? { verifiedEntitlementToken } : {}),
+    });
+  };
+}

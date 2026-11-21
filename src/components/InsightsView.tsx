@@ -32,10 +32,26 @@ import {
   Sparkles,
   Bot,
   ArrowRight,
+  Lock,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { SavingsChallenges } from './SavingsChallenges';
 import { PremiumFeatureId } from '../types/premium';
 import { useModalBackHandler } from '../utils/backNavigation';
+import { AuthUser } from '../services/authService';
+import { getCurrentUserPlanTier } from '../utils/premium';
+import { useStageAvailability } from '../utils/stageAvailability';
+import {
+  buildSafeAdvancedAnalyticsContext,
+  requestAiRecommendations,
+  requestAdvancedAiInsights,
+} from '../services/aiCoachService';
+import {
+  AiRecommendationsResponsePayload,
+  AdvancedAiInsightsResponsePayload,
+} from '../types/coach';
 
 interface InsightsViewProps {
   transactions: Expense[];
@@ -44,6 +60,8 @@ interface InsightsViewProps {
   onOpenBudgetModal: () => void;
   onOpenUpgrade?: (feature?: PremiumFeatureId) => void;
   onOpenAiCoach?: () => void;
+  authUser?: AuthUser | null;
+  onRequireAuth?: (msg?: string) => void;
 }
 
 type InsightPeriod = 'this-month' | 'last-month' | 'last-90' | 'all-time';
@@ -56,7 +74,17 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
   onOpenBudgetModal,
   onOpenUpgrade,
   onOpenAiCoach,
+  authUser,
+  onRequireAuth,
 }) => {
+  const stageAvailability = useStageAvailability(true);
+  const isPremium = Boolean(authUser) && getCurrentUserPlanTier() === 'premium';
+  const [recData, setRecData] = useState<AiRecommendationsResponsePayload | null>(null);
+  const [recLoading, setRecLoading] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const [advData, setAdvData] = useState<AdvancedAiInsightsResponsePayload | null>(null);
+  const [advLoading, setAdvLoading] = useState(false);
+  const [advError, setAdvError] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<InsightsSubTab>('analytics');
   const [period, setPeriod] = useState<InsightPeriod>('this-month');
   const [selectedBarYm, setSelectedBarYm] = useState<string | null>(null);
@@ -1134,41 +1162,334 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
             </div>
           </div>
 
-          {/* AI Personal Spending Coach (Stage 2 Teaser) */}
-          <div className="bg-gradient-to-r from-teal-950 via-[#142D4E] to-[#1E3E66] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-teal-800/60">
-            <div className="space-y-1.5 max-w-xl min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
-                  <Sparkles className="w-3 h-3 fill-current" />
-                  Stage 2 · Coming Later
-                </span>
-                <span className="text-xs text-teal-200 font-semibold">Planned Premium Add-on</span>
+          {/* AI Intelligence Suite: Recommendations, Cash-Flow Forecasts & Coach */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* AI-Generated Financial Recommendations (ai_recommendations) */}
+              <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs space-y-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-bold text-[#142D4E]">
+                        AI Financial Recommendations
+                      </h3>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                        {!stageAvailability.aiRecommendationsEnabled
+                          ? 'Backend Offline'
+                          : isPremium
+                          ? 'Premium Active'
+                          : 'Premium'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#64748B] mt-0.5">
+                      Automated anomaly alerts &amp; personalized budget optimizations (data-minimized)
+                    </p>
+                  </div>
+                </div>
+
+                {!stageAvailability.aiRecommendationsEnabled ? (
+                  <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">
+                    {stageAvailability.aiCoachReason}
+                  </p>
+                ) : !authUser ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRequireAuth?.('Sign in to generate personalized AI Financial Recommendations.')
+                    }
+                    className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#142D4E] hover:bg-[#1E3E66] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Sign In for AI Recommendations</span>
+                  </button>
+                ) : !isPremium ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.('ai_recommendations')}
+                    className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Unlock AI Recommendations (Premium)</span>
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      disabled={recLoading}
+                      onClick={async () => {
+                        setRecLoading(true);
+                        setRecError(null);
+                        try {
+                          const ctx = buildSafeAdvancedAnalyticsContext(transactions, budget, currency);
+                          const res = await requestAiRecommendations(ctx);
+                          if (!res.success) {
+                            setRecError(res.message || 'Unable to generate AI recommendations.');
+                          } else {
+                            setRecData(res);
+                          }
+                        } catch {
+                          setRecError('Network error while contacting ExpenseFlow AI service.');
+                        } finally {
+                          setRecLoading(false);
+                        }
+                      }}
+                      className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {recLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Analyzing Spending Anomalies...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>{recData ? 'Refresh AI Recommendations' : 'Generate AI Recommendations'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {recError && (
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>{recError}</span>
+                      </div>
+                    )}
+
+                    {recData?.success && (
+                      <div className="space-y-2.5 text-xs">
+                        {recData.summary && (
+                          <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">
+                            {recData.summary}
+                          </p>
+                        )}
+                        {recData.anomalyAlerts && recData.anomalyAlerts.length > 0 && (
+                          <div className="space-y-1.5">
+                            {recData.anomalyAlerts.map((alert, idx) => (
+                              <div
+                                key={idx}
+                                className={`p-2.5 rounded-xl border text-[11px] ${
+                                  alert.severity === 'critical'
+                                    ? 'bg-rose-50 border-rose-200 text-rose-900'
+                                    : alert.severity === 'warning'
+                                    ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                    : 'bg-sky-50 border-sky-200 text-sky-900'
+                                }`}
+                              >
+                                <strong>{alert.category}:</strong> {alert.detail}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {recData.recommendations && recData.recommendations.length > 0 && (
+                          <div className="space-y-2">
+                            {recData.recommendations.map((rec) => (
+                              <div
+                                key={rec.id}
+                                className="p-3 rounded-xl bg-teal-50/40 border border-teal-200/70 space-y-1"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold text-[#142D4E]">{rec.title}</span>
+                                  {rec.potentialMonthlySavings > 0 && (
+                                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                                      Save ~{formatCurrency(rec.potentialMonthlySavings, currency)}/mo
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-700">{rec.actionStep}</p>
+                                {rec.rationale && (
+                                  <p className="text-[10px] text-slate-500">{rec.rationale}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <Bot className="w-5 h-5 text-amber-400 shrink-0" />
-                <span>AI Personal Spending Coach</span>
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Upcoming cloud-backed coaching on spending velocity and category burn rates using minimized monthly summaries. Disabled in Stage 1 offline-first release; all local insights above are 100% free right now.
-              </p>
+
+              {/* Advanced AI Insights & Cash-Flow Forecasts (advanced_ai_insights) */}
+              <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 sm:p-5 shadow-xs space-y-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-bold text-[#142D4E]">
+                        Advanced AI Cash-Flow Forecasts
+                      </h3>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                        {!stageAvailability.advancedAiInsightsEnabled
+                          ? 'Backend Offline'
+                          : isPremium
+                          ? 'Premium Active'
+                          : 'Premium'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#64748B] mt-0.5">
+                      Predictive cash-flow projections &amp; recurring spend leak detection
+                    </p>
+                  </div>
+                </div>
+
+                {!stageAvailability.advancedAiInsightsEnabled ? (
+                  <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">
+                    {stageAvailability.aiCoachReason}
+                  </p>
+                ) : !authUser ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRequireAuth?.('Sign in to generate Advanced AI Cash-Flow Forecasts.')
+                    }
+                    className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#142D4E] hover:bg-[#1E3E66] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Sign In for Cash-Flow Forecasts</span>
+                  </button>
+                ) : !isPremium ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.('advanced_ai_insights')}
+                    className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Unlock Cash-Flow Forecasts (Premium)</span>
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      disabled={advLoading}
+                      onClick={async () => {
+                        setAdvLoading(true);
+                        setAdvError(null);
+                        try {
+                          const ctx = buildSafeAdvancedAnalyticsContext(transactions, budget, currency);
+                          const res = await requestAdvancedAiInsights(ctx);
+                          if (!res.success) {
+                            setAdvError(res.message || 'Unable to generate Advanced AI Insights.');
+                          } else {
+                            setAdvData(res);
+                          }
+                        } catch {
+                          setAdvError('Network error while contacting ExpenseFlow AI service.');
+                        } finally {
+                          setAdvLoading(false);
+                        }
+                      }}
+                      className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#142D4E] hover:bg-[#1E3E66] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {advLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Projecting Cash Flow...</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          <span>{advData ? 'Refresh Cash-Flow Forecast' : 'Generate Cash-Flow Forecast'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {advError && (
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>{advError}</span>
+                      </div>
+                    )}
+
+                    {advData?.success && advData.forecast && (
+                      <div className="space-y-2.5 text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                              Est. Month-End
+                            </span>
+                            <div className="text-sm font-bold text-[#142D4E] mt-0.5">
+                              {formatCurrency(advData.forecast.projectedMonthEndSpend, currency)}
+                            </div>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                              Next Month Est.
+                            </span>
+                            <div className="text-sm font-bold text-[#142D4E] mt-0.5">
+                              {formatCurrency(advData.forecast.projectedNextMonthSpend, currency)}
+                            </div>
+                          </div>
+                        </div>
+                        {advData.summary && (
+                          <p className="text-slate-700 leading-relaxed text-[11px]">{advData.summary}</p>
+                        )}
+                        {advData.recurringLeaks && advData.recurringLeaks.length > 0 && (
+                          <div className="space-y-1.5">
+                            <p className="text-[11px] font-bold text-[#142D4E]">Recurring Spend Signals:</p>
+                            {advData.recurringLeaks.map((leak, idx) => (
+                              <div
+                                key={idx}
+                                className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] text-amber-950"
+                              >
+                                <strong>{leak.category}</strong> (~{formatCurrency(leak.estimatedMonthlyCost, currency)}/mo · {formatCurrency(leak.annualizedCost, currency)}/yr): {leak.observation}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {advData.strategicGuidance && advData.strategicGuidance.length > 0 && (
+                          <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            {advData.strategicGuidance.map((tip, idx) => (
+                              <li key={idx}>{tip}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onOpenAiCoach) {
-                    onOpenAiCoach();
-                  } else {
-                    onOpenUpgrade?.('ai_spending_coach');
-                  }
-                }}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
-              >
-                <Bot className="w-4 h-4" />
-                <span>View Stage 2 Info</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+            {/* AI Personal Spending Coach Launcher */}
+            <div className="bg-gradient-to-r from-teal-950 via-[#142D4E] to-[#1E3E66] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-teal-800/60">
+              <div className="space-y-1.5 max-w-xl min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
+                    <Sparkles className="w-3 h-3 fill-current" />
+                    {!stageAvailability.aiCoachEnabled
+                      ? 'Backend Offline'
+                      : isPremium
+                      ? 'Premium Active'
+                      : 'Premium AI Coach'}
+                  </span>
+                  <span className="text-xs text-teal-200 font-semibold">Gemini 4 Hydrogen</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-amber-400 shrink-0" />
+                  <span>AI Personal Spending Coach</span>
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {stageAvailability.aiCoachEnabled
+                    ? 'Ask interactive questions about your monthly spending pace, category burn rates, and affordability goals using strictly aggregated summaries.'
+                    : stageAvailability.aiCoachReason}
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenAiCoach) {
+                      onOpenAiCoach();
+                    } else {
+                      onOpenUpgrade?.('ai_spending_coach');
+                    }
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+                >
+                  <Bot className="w-4 h-4" />
+                  <span>{isPremium && stageAvailability.aiCoachEnabled ? 'Open AI Coach' : 'AI Coach'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </>

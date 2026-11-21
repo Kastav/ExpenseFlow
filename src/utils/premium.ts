@@ -108,7 +108,7 @@ export const FEATURE_REGISTRY: Record<FreeFeatureId | PremiumFeatureId, FeatureS
     isCostIncurring: true,
     requiredTier: 'premium',
     costCategory: 'ai_llm_api',
-    status: 'planned_preview',
+    status: 'active',
   },
   advanced_ai_insights: {
     id: 'advanced_ai_insights',
@@ -117,7 +117,7 @@ export const FEATURE_REGISTRY: Record<FreeFeatureId | PremiumFeatureId, FeatureS
     isCostIncurring: true,
     requiredTier: 'premium',
     costCategory: 'ai_llm_api',
-    status: 'planned_preview',
+    status: 'active',
   },
   cloud_sync_backup: {
     id: 'cloud_sync_backup',
@@ -126,7 +126,7 @@ export const FEATURE_REGISTRY: Record<FreeFeatureId | PremiumFeatureId, FeatureS
     isCostIncurring: true,
     requiredTier: 'premium',
     costCategory: 'cloud_database',
-    status: 'planned_preview',
+    status: 'active',
   },
   paid_bank_integrations: {
     id: 'paid_bank_integrations',
@@ -181,16 +181,115 @@ export function setStoredEntitlementToken(token: string | null): void {
   }
 }
 
+const SUBSCRIPTION_ENTITLEMENT_RECORD_KEY = 'expenseflow_subscription_entitlement_v1';
+const STRUCTURED_PLAY_TOKEN_REGEX =
+  /^play_sub_(expenseflow_premium_monthly|expenseflow_premium_annual)_(\d+)_([a-f0-9]{8,64})_([a-f0-9]{16,64})$/;
+
+interface StoredEntitlementExpirySnapshot {
+  tier?: unknown;
+  productId?: unknown;
+  verifiedEntitlementToken?: unknown;
+  expiryTimeMillis?: unknown;
+}
+
+function purgeExpiredOrInvalidEntitlements(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    window.localStorage.removeItem(ENTITLEMENT_TOKEN_KEY);
+    window.localStorage.removeItem(SUBSCRIPTION_ENTITLEMENT_RECORD_KEY);
+  } catch {
+    // Ignore storage cleanup error
+  }
+}
+
 /**
- * Returns current user entitlement tier.
- * In free mode without an active entitlement token, returns 'free'.
- * When a verified Google Play entitlement token is present, resolves to 'premium'.
+ * Extracts and validates structured Play entitlement metadata when present.
  */
-export function getCurrentUserPlanTier(): PlanTier {
+export function parseStructuredPlayEntitlementToken(token: string): {
+  productId: string;
+  expiryTimeMillis: number;
+  tokenId: string;
+} | null {
+  if (!token || typeof token !== 'string') return null;
+  const match = STRUCTURED_PLAY_TOKEN_REGEX.exec(token.trim());
+  if (!match) return null;
+  const expiryTimeMillis = Number(match[2]);
+  if (!Number.isFinite(expiryTimeMillis) || expiryTimeMillis <= 0) {
+    return null;
+  }
+  return {
+    productId: match[1],
+    expiryTimeMillis,
+    tokenId: match[3],
+  };
+}
+
+/**
+ * Returns current user entitlement tier with strict expiry validation.
+ * In free mode or when a cached token/record is expired or malformed, clears
+ * stale entitlement cache and returns 'free'.
+ * Note: Server routes still enforce cryptographic HMAC + Firestore ownership on every request.
+ */
+export function getCurrentUserPlanTier(nowMs: number = Date.now()): PlanTier {
   const token = getStoredEntitlementToken();
-  if (token && (token === 'premium' || token.startsWith('play_sub_') || token.startsWith('gplay_'))) {
+  if (!token || !token.startsWith('play_sub_')) {
+    return 'free';
+  }
+
+  const structured = parseStructuredPlayEntitlementToken(token);
+  if (structured && structured.expiryTimeMillis <= nowMs) {
+    purgeExpiredOrInvalidEntitlements();
+    return 'free';
+  }
+
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const rawRecord = window.localStorage.getItem(SUBSCRIPTION_ENTITLEMENT_RECORD_KEY);
+      if (rawRecord !== null && rawRecord.trim() !== '') {
+        const parsed = JSON.parse(rawRecord) as StoredEntitlementExpirySnapshot;
+        if (
+          !parsed ||
+          typeof parsed !== 'object' ||
+          parsed.tier !== 'premium' ||
+          typeof parsed.expiryTimeMillis !== 'number' ||
+          !Number.isFinite(parsed.expiryTimeMillis) ||
+          parsed.expiryTimeMillis <= nowMs
+        ) {
+          purgeExpiredOrInvalidEntitlements();
+          return 'free';
+        }
+        if (
+          typeof parsed.verifiedEntitlementToken === 'string' &&
+          parsed.verifiedEntitlementToken.length > 0 &&
+          parsed.verifiedEntitlementToken !== token
+        ) {
+          purgeExpiredOrInvalidEntitlements();
+          return 'free';
+        }
+        if (
+          structured &&
+          typeof parsed.productId === 'string' &&
+          parsed.productId.length > 0 &&
+          parsed.productId !== structured.productId
+        ) {
+          purgeExpiredOrInvalidEntitlements();
+          return 'free';
+        }
+        return 'premium';
+      }
+    }
+  } catch {
+    purgeExpiredOrInvalidEntitlements();
+    return 'free';
+  }
+
+  // Without a companion entitlement record containing a future expiryTimeMillis,
+  // only accept a full structured Play token with an unexpired embedded timestamp.
+  if (structured && structured.expiryTimeMillis > nowMs) {
     return 'premium';
   }
+
+  purgeExpiredOrInvalidEntitlements();
   return 'free';
 }
 

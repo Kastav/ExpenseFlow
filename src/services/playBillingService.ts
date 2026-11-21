@@ -625,6 +625,106 @@ export async function restoreSubscriptionPurchases(
  * - On Android, queries Google Play for active subscriptions and re-verifies with the backend.
  * - Clears revoked/expired/refunded local entitlements immediately if Play/backend reports inactive.
  */
+
+export interface ServerEntitlementResponse {
+  success?: boolean;
+  tier?: 'free' | 'premium';
+  premium?: boolean;
+  status?: string;
+  productId?: PlayProductId | null;
+  expiresAt?: string | null;
+  expiryTimeMillis?: number | null;
+  autoRenewing?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  verifiedEntitlementToken?: string;
+}
+
+/**
+ * Queries GET /api/entitlements/me for authoritative server-side subscription state
+ * using the user's Firebase ID Token. Keeps local entitlement synced across devices and web.
+ */
+export async function syncWithServerEntitlement(options?: {
+  authToken?: string | null;
+  apiConfigOptions?: ResolveApiUrlOptions;
+}): Promise<{
+  checked: boolean;
+  tier: 'free' | 'premium';
+  status?: string;
+}> {
+  let targetUrl: string;
+  try {
+    targetUrl = resolveApiUrl('/api/entitlements/me', options?.apiConfigOptions);
+  } catch {
+    const stored = getStoredSubscriptionEntitlement();
+    return { checked: false, tier: stored.tier };
+  }
+
+  const resolvedAuthToken =
+    options?.authToken !== undefined
+      ? options.authToken
+      : authTokenProvider
+      ? await authTokenProvider()
+      : null;
+
+  if (!resolvedAuthToken) {
+    const stored = getStoredSubscriptionEntitlement();
+    return { checked: false, tier: stored.tier, status: 'unauthenticated' };
+  }
+
+  try {
+    const res = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${resolvedAuthToken}`,
+      },
+    });
+    if (res.status === 401) {
+      clearLocalSubscriptionEntitlement();
+      return { checked: true, tier: 'free', status: 'unauthorized' };
+    }
+    if (!res.ok) {
+      const stored = getStoredSubscriptionEntitlement();
+      return { checked: false, tier: stored.tier };
+    }
+    const body = (await res.json()) as ServerEntitlementResponse;
+    if (body.success !== true) {
+      const stored = getStoredSubscriptionEntitlement();
+      return { checked: false, tier: stored.tier };
+    }
+    if (
+      body.premium === true &&
+      body.tier === 'premium' &&
+      typeof body.expiryTimeMillis === 'number' &&
+      body.expiryTimeMillis > Date.now()
+    ) {
+      const existing = getStoredSubscriptionEntitlement();
+      const verifiedToken =
+        body.verifiedEntitlementToken || existing.verifiedEntitlementToken || null;
+      if (verifiedToken) {
+        saveSubscriptionEntitlement({
+          tier: 'premium',
+          productId: body.productId || existing.productId,
+          purchaseToken: existing.purchaseToken,
+          verifiedEntitlementToken: verifiedToken,
+          expiryTimeMillis: body.expiryTimeMillis,
+          autoRenewing: Boolean(body.autoRenewing),
+          cancelAtPeriodEnd: Boolean(body.cancelAtPeriodEnd),
+          lastVerifiedAt: Date.now(),
+        });
+        setStoredEntitlementToken(verifiedToken);
+        return { checked: true, tier: 'premium', status: body.status || 'active' };
+      }
+      return { checked: true, tier: existing.tier, status: body.status || 'active' };
+    }
+    clearLocalSubscriptionEntitlement();
+    return { checked: true, tier: 'free', status: body.status || 'inactive' };
+  } catch {
+    const stored = getStoredSubscriptionEntitlement();
+    return { checked: false, tier: stored.tier, status: 'network_error' };
+  }
+}
+
 export async function syncSubscriptionOnAppActive(
   options?: {
     force?: boolean;
@@ -657,10 +757,16 @@ export async function syncSubscriptionOnAppActive(
         const purchased = purchases.filter((p) => p.purchaseState === 'PURCHASED');
 
         if (purchased.length === 0) {
-          // Only revoke local cache if user had a cached Play purchase that is no longer present in Play Store
           if (stored.tier === 'premium' && stored.purchaseToken) {
             clearLocalSubscriptionEntitlement();
             return { synced: true, tier: 'free', reason: 'no_active_play_purchase' };
+          }
+          const serverSync = await syncWithServerEntitlement({
+            authToken: options?.verifyOptions?.authToken,
+            apiConfigOptions: options?.verifyOptions?.apiConfigOptions,
+          });
+          if (serverSync.checked) {
+            return { synced: true, tier: serverSync.tier, reason: serverSync.status };
           }
           return { synced: true, tier: 'free' };
         }
@@ -736,6 +842,13 @@ export async function syncSubscriptionOnAppActive(
       }
     }
 
+    const serverFallback = await syncWithServerEntitlement({
+      authToken: options?.verifyOptions?.authToken,
+      apiConfigOptions: options?.verifyOptions?.apiConfigOptions,
+    });
+    if (serverFallback.checked) {
+      return { synced: true, tier: serverFallback.tier, reason: serverFallback.status };
+    }
     return { synced: false, tier: stored.tier };
   };
 

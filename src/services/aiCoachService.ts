@@ -17,6 +17,13 @@ import {
   CoachChatResponsePayload,
   CoachBackendStatus,
   CoachLocalUsage,
+  SafeAdvancedAnalyticsContext,
+  SafeHistoricalMonthSummary,
+  SafeRecurringPatternSummary,
+  AiRecommendationsRequestPayload,
+  AiRecommendationsResponsePayload,
+  AdvancedAiInsightsRequestPayload,
+  AdvancedAiInsightsResponsePayload,
 } from '../types/coach';
 import { getCurrentUserPlanTier, getStoredEntitlementToken } from '../utils/premium';
 import { ApiConfigurationError, resolveApiUrl, ResolveApiUrlOptions } from '../utils/apiConfig';
@@ -356,4 +363,237 @@ export async function sendCoachChatMessage(
       message: 'Network connection error. Unable to reach ExpenseFlow AI Coach service.',
     };
   }
+}
+
+
+/**
+ * Builds an extended, strictly data-minimized context across up to 6 recent months
+ * and category recurring cadence signals (NEVER sends raw IDs, dates, notes, or merchants).
+ */
+export function buildSafeAdvancedAnalyticsContext(
+  transactions: Expense[],
+  budget: BudgetSettings,
+  currency: CurrencyCode,
+  activeChallengeCount: number = 0,
+  referenceDateStr?: string
+): SafeAdvancedAnalyticsContext {
+  const currentMonth = buildSafeFinancialSummary(
+    transactions,
+    budget,
+    currency,
+    referenceDateStr
+  );
+
+  const refDate = referenceDateStr ? new Date(referenceDateStr) : new Date();
+  const currentYm = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}`;
+
+  // Group prior months cleanly (up to 6 most recent months excluding currentYm)
+  const monthBuckets = new Map<
+    string,
+    { total: number; count: number; categories: Record<string, number> }
+  >();
+  // Group recurring candidates by category + 10% rounded amount bucket without preserving raw IDs or notes
+  const recurringBuckets = new Map<
+    string,
+    { category: string; amounts: number[]; months: Set<string>; dates: Set<string> }
+  >();
+
+  for (const tx of transactions) {
+    if (!tx || typeof tx.date !== 'string' || tx.date.length < 7) continue;
+    const ym = tx.date.substring(0, 7);
+
+    if (ym < currentYm) {
+      const entry = monthBuckets.get(ym) || { total: 0, count: 0, categories: {} };
+      entry.total += tx.amount;
+      entry.count += 1;
+      entry.categories[tx.category] = (entry.categories[tx.category] || 0) + tx.amount;
+      monthBuckets.set(ym, entry);
+    }
+
+    const bucketMagnitude = Math.max(1, Math.round(tx.amount / Math.max(5, tx.amount * 0.15)));
+    const recKey = `${tx.category}::${bucketMagnitude}`;
+    const rec = recurringBuckets.get(recKey) || {
+      category: tx.category,
+      amounts: [],
+      months: new Set<string>(),
+      dates: new Set<string>(),
+    };
+    rec.amounts.push(tx.amount);
+    rec.months.add(ym);
+    rec.dates.add(tx.date);
+    recurringBuckets.set(recKey, rec);
+  }
+
+  const historicalMonths: SafeHistoricalMonthSummary[] = Array.from(monthBuckets.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, 6)
+    .map(([yearMonth, data]) => ({
+      yearMonth,
+      totalSpent: Math.round(data.total * 100) / 100,
+      transactionCount: data.count,
+      topCategories: Object.entries(data.categories)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([category, amount]) => ({
+          category,
+          amount: Math.round(amount * 100) / 100,
+        })),
+    }));
+
+  const recurringPatterns: SafeRecurringPatternSummary[] = [];
+  for (const bucket of recurringBuckets.values()) {
+    if (bucket.amounts.length < 2 || bucket.dates.size < 2) continue;
+    const avg =
+      bucket.amounts.reduce((sum, val) => sum + val, 0) / bucket.amounts.length;
+    const monthSpan = Math.max(1, bucket.months.size);
+    const freqPerMonth = bucket.amounts.length / monthSpan;
+    const cadence: SafeRecurringPatternSummary['cadence'] =
+      freqPerMonth >= 3.2
+        ? 'weekly'
+        : freqPerMonth >= 1.6
+        ? 'biweekly'
+        : bucket.months.size >= 2
+        ? 'monthly'
+        : 'irregular';
+    recurringPatterns.push({
+      category: bucket.category,
+      occurrences: bucket.amounts.length,
+      averageAmount: Math.round(avg * 100) / 100,
+      estimatedMonthlyCost: Math.round(avg * freqPerMonth * 100) / 100,
+      cadence,
+    });
+  }
+  recurringPatterns.sort((a, b) => b.estimatedMonthlyCost - a.estimatedMonthlyCost);
+
+  return {
+    currentMonth,
+    historicalMonths,
+    recurringPatterns: recurringPatterns.slice(0, 8),
+    activeChallengeCount,
+  };
+}
+
+async function postCoachAnalyticsEndpoint<TRes extends { success: boolean; error?: string; message?: string }>(
+  endpointPath: '/api/coach/recommendations' | '/api/coach/insights',
+  analyticsContext: SafeAdvancedAnalyticsContext,
+  options?: ResolveApiUrlOptions | SendCoachChatOptions
+): Promise<TRes> {
+  const resolvedOpts: SendCoachChatOptions =
+    options && ('apiConfigOptions' in options || 'authToken' in options)
+      ? (options as SendCoachChatOptions)
+      : { apiConfigOptions: options as ResolveApiUrlOptions | undefined };
+
+  const localUsage = getCoachLocalUsage();
+  if (localUsage.recentTimestamps.length >= MAX_REQUESTS_PER_MINUTE) {
+    return {
+      success: false,
+      error: 'rate_limited',
+      message: 'Rate limit reached: Maximum 5 AI requests per minute. Please pause briefly before retrying.',
+    } as TRes;
+  }
+  if (localUsage.requestsCount >= MAX_MONTHLY_QUOTA) {
+    return {
+      success: false,
+      error: 'quota_exceeded',
+      message: `Monthly AI query quota reached (${MAX_MONTHLY_QUOTA} queries/month).`,
+    } as TRes;
+  }
+
+  let targetUrl: string;
+  try {
+    targetUrl = resolveApiUrl(endpointPath, resolvedOpts.apiConfigOptions);
+  } catch (err) {
+    if (err instanceof ApiConfigurationError) {
+      return {
+        success: false,
+        error: 'configuration_required',
+        message: err.message,
+      } as TRes;
+    }
+    throw err;
+  }
+
+  const deviceId = getOrCreateDeviceId();
+  const userTier = getCurrentUserPlanTier();
+  const entitlementToken = getStoredEntitlementToken() || '';
+  const authToken =
+    resolvedOpts.authToken !== undefined
+      ? resolvedOpts.authToken
+      : coachAuthTokenProvider
+      ? await coachAuthTokenProvider()
+      : null;
+
+  const payload: AiRecommendationsRequestPayload | AdvancedAiInsightsRequestPayload = {
+    analyticsContext,
+    deviceId,
+    entitlementToken: entitlementToken || undefined,
+  };
+
+  try {
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-ExpenseFlow-Entitlement-Tier': userTier,
+        'X-Client-Device-ID': deviceId,
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    let data: TRes;
+    try {
+      data = (await response.json()) as TRes;
+    } catch {
+      return {
+        success: false,
+        error:
+          response.status === 401
+            ? 'unauthorized'
+            : response.status === 503
+            ? 'configuration_required'
+            : 'server_error',
+        message: `ExpenseFlow AI service returned an unreadable response (HTTP ${response.status}).`,
+      } as TRes;
+    }
+
+    if (response.ok && data.success) {
+      recordCoachLocalRequest();
+    }
+    return data;
+  } catch {
+    return {
+      success: false,
+      error: 'server_error',
+      message: 'Network connection error. Unable to reach ExpenseFlow AI service.',
+    } as TRes;
+  }
+}
+
+/**
+ * Generates AI-driven anomaly alerts and personalized budget optimization recommendations (Premium).
+ */
+export async function requestAiRecommendations(
+  analyticsContext: SafeAdvancedAnalyticsContext,
+  options?: ResolveApiUrlOptions | SendCoachChatOptions
+): Promise<AiRecommendationsResponsePayload> {
+  return postCoachAnalyticsEndpoint<AiRecommendationsResponsePayload>(
+    '/api/coach/recommendations',
+    analyticsContext,
+    options
+  );
+}
+
+/**
+ * Generates Advanced AI Insights: predictive cash-flow forecasts & recurring leak analysis (Premium).
+ */
+export async function requestAdvancedAiInsights(
+  analyticsContext: SafeAdvancedAnalyticsContext,
+  options?: ResolveApiUrlOptions | SendCoachChatOptions
+): Promise<AdvancedAiInsightsResponsePayload> {
+  return postCoachAnalyticsEndpoint<AdvancedAiInsightsResponsePayload>(
+    '/api/coach/insights',
+    analyticsContext,
+    options
+  );
 }

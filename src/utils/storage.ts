@@ -433,6 +433,9 @@ export function saveStoredTransactions(
         : mergeTransactionLists(transactions, existingList, options);
 
     localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(targetTransactions));
+    if (options?.deletedIds && options.deletedIds.length > 0) {
+      recordDeletedSyncTombstones(options.deletedIds);
+    }
     return true;
   } catch (error) {
     console.error('ExpenseFlow: Error saving transactions to localStorage:', error);
@@ -1026,3 +1029,55 @@ export function clearLocalFinancialData(): boolean {
 }
 
 
+
+
+export const SYNC_TOMBSTONES_KEY = 'expenseflow_sync_tombstones_v1';
+
+export interface SyncDeletedTombstone {
+  id: string;
+  deletedAt: number;
+}
+
+export function loadDeletedSyncTombstones(): SyncDeletedTombstone[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(SYNC_TOMBSTONES_KEY);
+    if (!raw || !raw.trim()) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is SyncDeletedTombstone =>
+        Boolean(item && typeof item === 'object' && typeof item.id === 'string' && typeof item.deletedAt === 'number' && Number.isFinite(item.deletedAt))
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveDeletedSyncTombstones(tombstones: SyncDeletedTombstone[]): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(SYNC_TOMBSTONES_KEY, JSON.stringify(tombstones.slice(-500)));
+  } catch {
+    // Ignore metadata storage errors
+  }
+}
+
+export function recordDeletedSyncTombstones(deletedIds: string[], deletedAt: number = Date.now()): void {
+  if (!deletedIds || deletedIds.length === 0) return;
+  const existing = loadDeletedSyncTombstones();
+  const map = new Map<string, number>();
+  for (const item of existing) {
+    map.set(item.id, item.deletedAt);
+  }
+  for (const id of deletedIds) {
+    if (id) {
+      map.set(id, Math.max(map.get(id) || 0, deletedAt));
+    }
+  }
+  saveDeletedSyncTombstones(
+    Array.from(map.entries())
+      .map(([id, ts]) => ({ id, deletedAt: ts }))
+      .slice(-500)
+  );
+}

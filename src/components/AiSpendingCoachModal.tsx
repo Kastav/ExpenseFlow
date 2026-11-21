@@ -254,7 +254,7 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
                 AI Coach
               </span>
               <span className="text-[11px] text-teal-200 font-medium">
-                {stageAvailability.aiCoachEnabled ? 'Gemini 4 AI' : 'Stage 2 · Coming Later'}
+                {stageAvailability.aiCoachEnabled ? 'Gemini 4 AI' : 'Backend Offline'}
               </span>
             </div>
 
@@ -323,10 +323,10 @@ export const AiSpendingCoachModal: React.FC<AiSpendingCoachModalProps> = ({
 
             <div className="space-y-1.5">
               <h3 className="text-lg font-bold text-[#142D4E]">
-                Coming Later in Stage 2
+                AI Backend Currently Offline
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                The AI Personal Spending Coach is disabled in this Stage 1 offline-first release because live cloud billing and AI backend services are not yet active.
+                {stageAvailability.aiCoachReason}
               </p>
             </div>
 

@@ -108,6 +108,7 @@ export default function App() {
   const lastAuthUidRef = useRef<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalContext, setAuthModalContext] = useState<string | null>(null);
+  const [, setEntitlementVersion] = useState<number>(0);
 
   const handleSelectTab = useCallback((nextTab: ActiveTab) => {
     setActiveTab((prevTab) => {
@@ -267,7 +268,9 @@ export default function App() {
 
       if (snapshot.initialized) {
         if (snapshot.user) {
-          syncSubscriptionOnAppActive({ force: true }).catch(() => {});
+          syncSubscriptionOnAppActive({ force: true })
+            .then(() => setEntitlementVersion((v) => v + 1))
+            .catch(() => {});
         } else {
           // Signed-out users cannot retain cached Premium entitlement; local financial data stays intact
           clearLocalSubscriptionEntitlement();
@@ -406,6 +409,10 @@ export default function App() {
     setCurrencyErrorMessage(cRes.errorMessage || null);
     if (cRes.status !== 'error') {
       setCurrency(cRes.data);
+    }
+    const storedCountry = loadStoredCountryPreference();
+    if (storedCountry) {
+      setCountry(storedCountry);
     }
   }, []);
 
@@ -688,6 +695,9 @@ export default function App() {
             planErrorMessage={planErrorMessage}
             monthlyBudget={budget.monthlyBudget}
             onOpenUpgrade={handleOpenUpgrade}
+            onOpenAiCoach={handleOpenAiCoach}
+            authUser={authUser}
+            onRequireAuth={(msg) => handleOpenAuth(msg)}
           />
         )}
 
@@ -699,6 +709,8 @@ export default function App() {
             onOpenBudgetModal={() => setIsBudgetModalOpen(true)}
             onOpenUpgrade={handleOpenUpgrade}
             onOpenAiCoach={handleOpenAiCoach}
+            authUser={authUser}
+            onRequireAuth={(msg) => handleOpenAuth(msg)}
           />
         )}
 
@@ -713,7 +725,9 @@ export default function App() {
             onOpenPrivacyPolicy={() => setIsPrivacyModalOpen(true)}
             authUser={authUser}
             onOpenAuth={() => handleOpenAuth()}
+            onRequireAuth={(msg) => handleOpenAuth(msg)}
             onSignOut={handleSignOut}
+            onCloudSyncApplied={handleRetryLoadStorage}
           />
         )}
       </main>
@@ -730,7 +744,10 @@ export default function App() {
       {/* Premium Upgrade Modal */}
       <PremiumUpgradeModal
         isOpen={isUpgradeModalOpen}
-        onClose={() => setIsUpgradeModalOpen(false)}
+        onClose={() => {
+          setIsUpgradeModalOpen(false);
+          setEntitlementVersion((v) => v + 1);
+        }}
         featureTrigger={upgradeFeatureTrigger}
         authUser={authUser}
         onRequireAuth={(msg) => handleOpenAuth(msg)}

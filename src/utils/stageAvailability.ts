@@ -7,9 +7,12 @@ export interface StageFeatureAvailability {
   isBackendConfigured: boolean;
   purchasesEnabled: boolean;
   aiCoachEnabled: boolean;
+  aiRecommendationsEnabled: boolean;
+  advancedAiInsightsEnabled: boolean;
   cloudSyncEnabled: boolean;
   billingReason: string;
   aiCoachReason: string;
+  cloudSyncReason: string;
 }
 
 const DEFAULT_UNAVAILABLE_STATE: StageFeatureAvailability = {
@@ -18,15 +21,21 @@ const DEFAULT_UNAVAILABLE_STATE: StageFeatureAvailability = {
   isBackendConfigured: false,
   purchasesEnabled: false,
   aiCoachEnabled: false,
+  aiRecommendationsEnabled: false,
+  advancedAiInsightsEnabled: false,
   cloudSyncEnabled: false,
-  billingReason: 'In-app subscriptions are disabled in Stage 1 offline-first release until Stage 2 backend and Play Console billing are configured.',
-  aiCoachReason: 'AI Personal Spending Coach is disabled in Stage 1 offline-first release until the Stage 2 backend is deployed.',
+  billingReason:
+    'In-app subscription verification requires an online ExpenseFlow backend connection. All offline tracking and budgeting remain 100% active.',
+  aiCoachReason:
+    'AI Personal Spending Coach, AI Recommendations, and Advanced AI Insights require an online ExpenseFlow AI backend connection.',
+  cloudSyncReason:
+    'Multi-Device Cloud Sync requires an online ExpenseFlow backend and Firestore database connection. Local CSV export remains 100% available.',
 };
 
 let testAvailabilityOverride: Partial<StageFeatureAvailability> | null = null;
 
 /**
- * Allows automated tests to deterministically override Stage 1/2 feature availability.
+ * Allows automated tests to deterministically override backend feature availability.
  */
 export function setStageAvailabilityForTests(
   override: Partial<StageFeatureAvailability> | null
@@ -37,7 +46,7 @@ export function setStageAvailabilityForTests(
 /**
  * Synchronous initial assessment based strictly on compiled client configuration.
  * Ensures native Android builds without VITE_API_BASE_URL default immediately to
- * Stage 1 offline-first mode without firing dead network requests.
+ * offline-first mode without firing dead network requests.
  */
 export function getInitialStageAvailability(
   apiConfigOptions?: ResolveApiUrlOptions
@@ -52,8 +61,6 @@ export function getInitialStageAvailability(
 
   try {
     resolveApiUrl('/api/billing/status', apiConfigOptions);
-    // Relative / web URL or valid explicit HTTPS base URL exists, but fail closed
-    // until live /api/billing/status and /api/coach/status confirm Stage 2 readiness.
     return {
       ...DEFAULT_UNAVAILABLE_STATE,
       checked: false,
@@ -80,8 +87,8 @@ export function getInitialStageAvailability(
 
 /**
  * Probes server readiness endpoints when a backend URL exists to determine whether
- * Stage 2 monetization and AI features are genuinely active on the server.
- * Always fails closed to Stage 1 disabled state if unconfigured or unreachable.
+ * Play Billing, Gemini AI features, and Cloud Sync are genuinely active on the server.
+ * Always fails closed if unconfigured or unreachable.
  */
 export async function resolveStageFeatureAvailability(
   apiConfigOptions?: ResolveApiUrlOptions
@@ -96,9 +103,11 @@ export async function resolveStageFeatureAvailability(
 
   let billingStatusUrl: string;
   let coachStatusUrl: string;
+  let cloudSyncStatusUrl: string;
   try {
     billingStatusUrl = resolveApiUrl('/api/billing/status', apiConfigOptions);
     coachStatusUrl = resolveApiUrl('/api/coach/status', apiConfigOptions);
+    cloudSyncStatusUrl = resolveApiUrl('/api/cloud-sync/status', apiConfigOptions);
   } catch {
     return {
       ...DEFAULT_UNAVAILABLE_STATE,
@@ -109,9 +118,14 @@ export async function resolveStageFeatureAvailability(
   }
 
   let purchasesEnabled = false;
+  let persistenceReady = false;
   let aiCoachEnabled = false;
+  let aiRecommendationsEnabled = false;
+  let advancedAiInsightsEnabled = false;
+  let cloudSyncEnabled = false;
   let billingReason = DEFAULT_UNAVAILABLE_STATE.billingReason;
   let aiCoachReason = DEFAULT_UNAVAILABLE_STATE.aiCoachReason;
+  let cloudSyncReason = DEFAULT_UNAVAILABLE_STATE.cloudSyncReason;
 
   try {
     const billingRes = await fetch(billingStatusUrl, {
@@ -123,13 +137,17 @@ export async function resolveStageFeatureAvailability(
         configured?: boolean;
         persistenceReady?: boolean;
       };
-      if (billingJson.configured === true && billingJson.persistenceReady === true) {
+      persistenceReady = Boolean(billingJson.persistenceReady);
+      if (billingJson.configured === true && persistenceReady) {
         purchasesEnabled = true;
         billingReason = 'Google Play Billing server verification active.';
+      } else if (persistenceReady && !billingJson.configured) {
+        billingReason =
+          'Subscription verification backend is online, awaiting Google Play service credentials.';
       }
     }
   } catch {
-    // Keep fail-closed Stage 1 disabled state
+    // Fail closed
   }
 
   try {
@@ -138,31 +156,62 @@ export async function resolveStageFeatureAvailability(
       headers: { Accept: 'application/json' },
     });
     if (coachRes.ok) {
-      const coachJson = (await coachRes.json()) as { available?: boolean };
-      // AI Coach requires both verified server-side billing/persistence AND configured Gemini key
+      const coachJson = (await coachRes.json()) as {
+        available?: boolean;
+        features?: {
+          chat?: boolean;
+          recommendations?: boolean;
+          advancedInsights?: boolean;
+        };
+      };
       if (coachJson.available === true && purchasesEnabled) {
-        aiCoachEnabled = true;
-        aiCoachReason = 'AI Spending Coach backend online.';
+        aiCoachEnabled = coachJson.features?.chat ?? true;
+        aiRecommendationsEnabled = coachJson.features?.recommendations ?? true;
+        advancedAiInsightsEnabled = coachJson.features?.advancedInsights ?? true;
+        aiCoachReason = 'ExpenseFlow Gemini AI backend online.';
+      } else if (!purchasesEnabled && coachJson.available === true) {
+        aiCoachReason =
+          'AI backend requires active subscription verification and Firestore persistence.';
       }
     }
   } catch {
-    // Keep fail-closed Stage 1 disabled state
+    // Fail closed
+  }
+
+  try {
+    const syncRes = await fetch(cloudSyncStatusUrl, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (syncRes.ok) {
+      const syncJson = (await syncRes.json()) as { available?: boolean };
+      if (syncJson.available === true && persistenceReady) {
+        cloudSyncEnabled = true;
+        cloudSyncReason = 'Multi-Device Cloud Sync backend online.';
+      }
+    }
+  } catch {
+    // Fail closed
   }
 
   return {
     checked: true,
-    isStage1OfflineMode: !purchasesEnabled && !aiCoachEnabled,
+    isStage1OfflineMode:
+      !purchasesEnabled && !aiCoachEnabled && !cloudSyncEnabled,
     isBackendConfigured: true,
     purchasesEnabled,
     aiCoachEnabled,
-    cloudSyncEnabled: false,
+    aiRecommendationsEnabled,
+    advancedAiInsightsEnabled,
+    cloudSyncEnabled,
     billingReason,
     aiCoachReason,
+    cloudSyncReason,
   };
 }
 
 /**
- * React hook for UI components to inspect Stage 1 vs Stage 2 readiness safely.
+ * React hook for UI components to inspect live backend vs offline readiness safely.
  */
 export function useStageAvailability(active: boolean = true): StageFeatureAvailability {
   const [availability, setAvailability] = useState<StageFeatureAvailability>(() =>

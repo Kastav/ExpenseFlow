@@ -1,8 +1,3 @@
-/**
- * Types for ExpenseFlow AI Personal Spending Coach.
- * Strict data minimization, rate limiting, and cost protection.
- */
-
 export interface CoachChatMessage {
   id: string;
   sender: 'user' | 'coach';
@@ -12,17 +7,18 @@ export interface CoachChatMessage {
   errorMessage?: string;
 }
 
+/**
+ * Types & Interfaces for ExpenseFlow AI Personal Spending Coach,
+ * AI Recommendations, and Advanced AI Insights & Cash-Flow Forecasts.
+ * Enforces strict data minimization (zero raw transactions, IDs, or notes sent to Gemini).
+ */
+
 export interface SafeCategorySpendSummary {
   category: string;
   amount: number;
   percentage: number;
 }
 
-/**
- * Data Minimization Contract:
- * Only aggregate financial health metrics are shared with the AI.
- * Individual transactions, notes, merchants, and timestamps are NEVER included.
- */
 export interface SafeFinancialSummary {
   currency: string;
   monthlyBudget: number;
@@ -31,7 +27,7 @@ export interface SafeFinancialSummary {
   remainingMonthlyBudget: number;
   recommendedDailyAllowance: number;
   daysRemainingInMonth: number;
-  spendingVelocityStatus: 'normal' | 'caution' | 'critical' | 'no_budget';
+  spendingVelocityStatus: "normal" | "caution" | "critical" | "no_budget";
   topCategories: SafeCategorySpendSummary[];
   priorMonthComparison?: {
     priorMonthSpend: number;
@@ -39,10 +35,35 @@ export interface SafeFinancialSummary {
   };
 }
 
+export interface SafeHistoricalMonthSummary {
+  yearMonth: string;
+  totalSpent: number;
+  transactionCount: number;
+  topCategories: Array<{
+    category: string;
+    amount: number;
+  }>;
+}
+
+export interface SafeRecurringPatternSummary {
+  category: string;
+  occurrences: number;
+  averageAmount: number;
+  estimatedMonthlyCost: number;
+  cadence: "weekly" | "biweekly" | "monthly" | "irregular";
+}
+
+export interface SafeAdvancedAnalyticsContext {
+  currentMonth: SafeFinancialSummary;
+  historicalMonths: SafeHistoricalMonthSummary[];
+  recurringPatterns: SafeRecurringPatternSummary[];
+  activeChallengeCount: number;
+}
+
 export interface CoachChatRequestPayload {
   message: string;
   history?: Array<{
-    role: 'user' | 'model';
+    role: "user" | "model";
     text: string;
   }>;
   financialSummary?: SafeFinancialSummary;
@@ -50,22 +71,104 @@ export interface CoachChatRequestPayload {
   deviceId?: string;
 }
 
+export type CoachErrorCode =
+  | "unauthorized"
+  | "configuration_required"
+  | "entitlement_required"
+  | "rate_limited"
+  | "quota_exceeded"
+  | "invalid_request"
+  | "server_error";
+
+export interface CoachUsageSummary {
+  monthlyRequestsUsed: number;
+  monthlyQuota: number;
+  resetsAt?: string;
+}
+
 export interface CoachChatResponsePayload {
   success: boolean;
   reply?: string;
-  error?: 'unauthorized' | 'configuration_required' | 'entitlement_required' | 'rate_limited' | 'quota_exceeded' | 'invalid_request' | 'server_error';
+  error?: CoachErrorCode;
   message?: string;
-  usage?: {
-    monthlyRequestsUsed: number;
-    monthlyQuota: number;
-    resetsAt?: string;
-  };
+  usage?: CoachUsageSummary;
+}
+
+export interface AiRecommendationsRequestPayload {
+  analyticsContext: SafeAdvancedAnalyticsContext;
+  entitlementToken?: string;
+  deviceId?: string;
+}
+
+export interface AiAnomalyAlert {
+  category: string;
+  severity: "info" | "warning" | "critical";
+  detail: string;
+}
+
+export interface AiRecommendationItem {
+  id: string;
+  title: string;
+  category: string;
+  priority: "high" | "medium" | "low";
+  potentialMonthlySavings: number;
+  actionStep: string;
+  rationale: string;
+}
+
+export interface AiRecommendationsResponsePayload {
+  success: boolean;
+  summary?: string;
+  anomalyAlerts?: AiAnomalyAlert[];
+  recommendations?: AiRecommendationItem[];
+  generatedAt?: string;
+  error?: CoachErrorCode;
+  message?: string;
+  usage?: CoachUsageSummary;
+}
+
+export interface AdvancedAiInsightsRequestPayload {
+  analyticsContext: SafeAdvancedAnalyticsContext;
+  entitlementToken?: string;
+  deviceId?: string;
+}
+
+export interface CashFlowForecastSummary {
+  projectedMonthEndSpend: number;
+  projectedNextMonthSpend: number;
+  projectedBudgetVariance: number;
+  cashFlowRiskLevel: "low" | "moderate" | "high";
+  confidenceNote: string;
+}
+
+export interface RecurringLeakInsight {
+  category: string;
+  estimatedMonthlyCost: number;
+  annualizedCost: number;
+  observation: string;
+}
+
+export interface AdvancedAiInsightsResponsePayload {
+  success: boolean;
+  summary?: string;
+  forecast?: CashFlowForecastSummary;
+  recurringLeaks?: RecurringLeakInsight[];
+  strategicGuidance?: string[];
+  generatedAt?: string;
+  error?: CoachErrorCode;
+  message?: string;
+  usage?: CoachUsageSummary;
 }
 
 export interface CoachBackendStatus {
   available: boolean;
   requiresConfig: boolean;
   model: string;
+  features?: {
+    chat: boolean;
+    recommendations: boolean;
+    advancedInsights: boolean;
+  };
   costProtection: {
     maxMonthlyRequests: number;
     maxRequestsPerMinute: number;
