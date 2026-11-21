@@ -1,12 +1,13 @@
-# Multi-stage Cloud Run / Node.js 22 container for ExpenseFlow Backend & Web App
-# Build TypeScript server in the builder; production image contains no tsx/dev tooling.
+# Multi-stage Cloud Run / Node.js 22 container for ExpenseFlow Backend & Web App.
+# Build TypeScript server in the builder; production image contains no esbuild/dev tooling.
 # Secrets are provided only at runtime through Cloud Run / Secret Manager.
 
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+# This repository currently has no package-lock.json, so copy package.json explicitly.
+COPY package.json ./
+RUN npm install --no-audit --no-fund
 
 COPY . .
 RUN npm run build
@@ -18,8 +19,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev --no-audit --no-fund; fi && npm cache clean --force
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
