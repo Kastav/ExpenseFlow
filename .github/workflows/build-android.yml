@@ -77,8 +77,8 @@ jobs:
 
       - name: Verify locked Android package ID
         run: |
-          if ! grep -q 'applicationId "com.expenseflow.app"' android/app/build.gradle; then
-            echo "::error ::android/app/build.gradle does not specify locked applicationId com.expenseflow.app"
+          if ! grep -q 'applicationId "com.kastav.expenseflow"' android/app/build.gradle; then
+            echo "::error ::android/app/build.gradle does not specify locked applicationId com.kastav.expenseflow"
             exit 1
           fi
 
