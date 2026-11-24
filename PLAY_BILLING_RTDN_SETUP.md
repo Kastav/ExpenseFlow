@@ -2,7 +2,7 @@
 
 > **Stage 1 Notice:** This document describes **Stage 2** cloud billing & AI backend architecture. In **Stage 1 (Offline-First Internal Testing)**, Google Play purchases, AI Spending Coach, and Cloud Sync are cleanly disabled in the client UI (`src/utils/stageAvailability.ts`), and **no** Firestore database, Cloud Run deployment, or GCP billing activation is required or active yet.
 
-This reference covers the preserved Stage 2 backend environment variables, Firebase services, and Google Cloud Pub/Sub Real-Time Developer Notifications (RTDN) configuration for `com.expenseflow.app` (Firebase project `expenseflow-ad899`).
+This reference covers the preserved Stage 2 backend environment variables, Firebase services, and Google Cloud Pub/Sub Real-Time Developer Notifications (RTDN) configuration for `com.kastav.expenseflow` (Firebase project `expenseflow-ad899`).
 
 ---
 
@@ -45,7 +45,7 @@ This reference covers the preserved Stage 2 backend environment variables, Fireb
    - Endpoint URL: `https://<your-cloud-run-host>/api/billing/rtdn`
    - Enable **Authentication** using a dedicated push service account (matching `GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL`) and set **Audience** to match `GOOGLE_PUBSUB_AUDIENCE`.
 3. **Link Topic in Google Play Console:**
-   - Google Play Console -> `ExpenseFlow` (`com.expenseflow.app`) -> **Monetize > Monetization setup** -> enter `projects/expenseflow-ad899/topics/play-billing-rtdn`.
+   - Google Play Console -> `ExpenseFlow` (`com.kastav.expenseflow`) -> **Monetize > Monetization setup** -> enter `projects/expenseflow-ad899/topics/play-billing-rtdn`.
    - Click **Send test notification** and inspect Cloud Run logs to confirm `200` OIDC-verified delivery.
 
 ---
