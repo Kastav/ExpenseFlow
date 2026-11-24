@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.expenseflow.app"
+    namespace = "com.kastav.expenseflow"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.expenseflow.app"
+        applicationId "com.kastav.expenseflow"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode Integer.parseInt(System.getenv("ANDROID_VERSION_CODE") ?: "1")
