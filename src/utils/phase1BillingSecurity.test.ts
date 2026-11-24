@@ -93,7 +93,7 @@ async function runPhase1Tests() {
     purchases: {
       subscriptionsv2: {
         async get({ packageName, token }) {
-          assert(packageName === 'com.expenseflow.app', `Unexpected packageName: ${packageName}`);
+          assert(packageName === 'com.kastav.expenseflow', `Unexpected packageName: ${packageName}`);
           const entry = mockPurchases.get(token);
           if (!entry) {
             const err = new Error('Purchase token not found') as Error & { code?: number };
@@ -264,7 +264,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_any',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       assert(noAuthRes.status === 401, `Expected 401 for missing Bearer token, got ${noAuthRes.status}`);
@@ -280,7 +280,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_any',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       assert(badAuthRes.status === 401, `Expected 401 for invalid Bearer token, got ${badAuthRes.status}`);
@@ -314,7 +314,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_mismatch',
           productId: PLAY_PRODUCT_IDS.ANNUAL,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       assert(res.status === 400, `Expected 400 on product mismatch, got ${res.status}`);
@@ -335,7 +335,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'nonexistent_invalid_token_xyz',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       assert(res.status === 404, `Expected 404 on nonexistent token, got ${res.status}`);
@@ -370,7 +370,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_pending',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       const json = (await res.json()) as { success: boolean; status: string; verifiedEntitlementToken?: string };
@@ -409,7 +409,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_active_1',
           productId: PLAY_PRODUCT_IDS.ANNUAL,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           orderId: 'GPA.ACTIVE-1',
           mode: 'purchase',
         }),
@@ -440,7 +440,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_active_1',
           productId: PLAY_PRODUCT_IDS.ANNUAL,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           orderId: 'GPA.ACTIVE-1',
           mode: 'purchase',
         }),
@@ -459,7 +459,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_active_1',
           productId: PLAY_PRODUCT_IDS.ANNUAL,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           mode: 'restore',
         }),
       });
@@ -506,7 +506,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_canceled_paid',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           mode: 'restore',
         }),
       });
@@ -550,7 +550,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_expired',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           mode: 'restore',
         }),
       });
@@ -592,7 +592,7 @@ async function runPhase1Tests() {
       // Simulate RTDN SUBSCRIPTION_REVOKED (notificationType: 12)
       const rtdnPayload = Buffer.from(
         JSON.stringify({
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           subscriptionNotification: {
             notificationType: 12,
             purchaseToken: 'tok_active_1',
@@ -643,7 +643,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_active_1',
           productId: PLAY_PRODUCT_IDS.ANNUAL,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
           mode: 'restore',
         }),
       });
@@ -692,7 +692,7 @@ async function runPhase1Tests() {
         body: JSON.stringify({
           purchaseToken: 'tok_server_ack_fail',
           productId: PLAY_PRODUCT_IDS.MONTHLY,
-          packageName: 'com.expenseflow.app',
+          packageName: 'com.kastav.expenseflow',
         }),
       });
       assert(serverAckFailRes.status === 502, `Expected 502 when Play acknowledge fails, got ${serverAckFailRes.status}`);
