@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">ExpenseFlow</string>
     <string name="title_activity_main">ExpenseFlow</string>
-    <string name="package_name">com.expenseflow.app</string>
-    <string name="custom_url_scheme">com.expenseflow.app</string>
+    <string name="package_name">com.kastav.expenseflow</string>
+    <string name="custom_url_scheme">com.kastav.expenseflow</string>
 </resources>
