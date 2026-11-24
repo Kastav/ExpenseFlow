@@ -1,6 +1,6 @@
 # EXPENSEFLOW — STAGE 1 & STAGE 2 GOOGLE PLAY OWNER ACTIONS
 
-**Application:** ExpenseFlow (`com.expenseflow.app`)  
+**Application:** ExpenseFlow (`com.kastav.expenseflow`)  
 **Firebase Project:** `expenseflow-ad899`  
 **Target Platform:** Google Play Store (Android — Stage 1 Offline-First Core)  
 **Owner / Tester Account:** `kastavrathor269@gmail.com`  
@@ -52,7 +52,7 @@ Follow these steps **without** creating Firestore, Cloud Run, or enabling Cloud 
 
 ### Step 3 — Upload to Google Play Internal Testing & Fill Stage 1 Store Declarations (~5 mins)
 
-1. Open [Google Play Console](https://play.google.com/console) -> **ExpenseFlow** (`com.expenseflow.app`).
+1. Open [Google Play Console](https://play.google.com/console) -> **ExpenseFlow** (`com.kastav.expenseflow`).
 2. **Store Settings / Listing Contact Email:** Enter your own real monitored support email (no placeholder addresses exist in code).
 3. **Policy and programs > App content** (copy Stage 1 declarations from `PLAY_STORE_RELEASE_PACKAGE.md`):
    - **Privacy Policy URL:** `https://<your-github-username>.github.io/<your-repo-name>/privacy.html`
