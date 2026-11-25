@@ -13,6 +13,7 @@ import com.android.billingclient.api.BillingResult;
 import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.ProductDetailsResponseListener;
+import com.android.billingclient.api.QueryProductDetailsResult;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesResponseListener;
 import com.android.billingclient.api.PurchasesUpdatedListener;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Native Capacitor Plugin for Google Play In-App Billing v7.
+ * Native Capacitor Plugin for Google Play In-App Billing v8.
  * Implements Google Play subscriptions for ExpenseFlow Premium.
  */
 @CapacitorPlugin(name = "GooglePlayBilling")
@@ -276,12 +277,12 @@ public class GooglePlayBillingPlugin extends Plugin implements PurchasesUpdatedL
 
                 billingClient.queryProductDetailsAsync(params, new ProductDetailsResponseListener() {
                     @Override
-                    public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull List<ProductDetails> list) {
+                    public void onProductDetailsResponse(@NonNull BillingResult billingResult, @NonNull QueryProductDetailsResult queryResult) {
                         if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                             JSArray results = new JSArray();
                             cachedProductDetails.clear();
 
-                            for (ProductDetails pd : list) {
+                            for (ProductDetails pd : queryResult.getProductDetailsList()) {
                                 String expectedBasePlanId = getExpectedBasePlanId(pd.getProductId());
                                 ProductDetails.SubscriptionOfferDetails offer =
                                         selectSubscriptionOffer(pd, expectedBasePlanId);
