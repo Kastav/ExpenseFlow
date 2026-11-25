@@ -1,6 +1,6 @@
 # ExpenseFlow — Google Play Store Stage 1 Release Package
 
-Exact Stage 1 store listing copy, Data Safety declarations, App Content responses, and GitHub Pages compliance URLs for **ExpenseFlow** (`com.expenseflow.app`).
+Exact Stage 1 store listing copy, Data Safety declarations, App Content responses, and GitHub Pages compliance URLs for **ExpenseFlow** (`com.kastav.expenseflow`).
 
 ---
 

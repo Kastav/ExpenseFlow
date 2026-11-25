@@ -2,7 +2,7 @@
  * Centralized Firebase Web SDK Configuration & Singleton Initializer for ExpenseFlow.
  *
  * Single source of truth used by Firebase Authentication and Firebase Analytics
- * across Web, Capacitor Android WebView (com.expenseflow.app), and Vite builds.
+ * across Web, Capacitor Android WebView (com.kastav.expenseflow), and Vite builds.
  * Target Firebase project: expenseflow-ad899 (Firestore Standard Native mode: us-central1).
  *
  * Security rules:

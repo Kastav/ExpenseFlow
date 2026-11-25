@@ -285,7 +285,7 @@ export async function verifyPurchaseWithServer(
       body: JSON.stringify({
         purchaseToken,
         productId,
-        packageName: 'com.expenseflow.app',
+        packageName: 'com.kastav.expenseflow',
         orderId: options?.orderId,
         mode: options?.mode || 'purchase',
       }),
