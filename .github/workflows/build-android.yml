@@ -151,7 +151,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_VERSION_CODE: ${{ vars.ANDROID_VERSION_CODE || '1' }}
+          ANDROID_VERSION_CODE: '3'
           ANDROID_VERSION_NAME: ${{ vars.ANDROID_VERSION_NAME || '1.0' }}
         run: cd android && ./gradlew bundleRelease --no-daemon --stacktrace
 
