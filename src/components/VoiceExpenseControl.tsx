@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition as NativeSpeechRecognition } from '@capgo/capacitor-speech-recognition';
 import { createPortal } from 'react-dom';
 import { CurrencyCode, ExpenseCategory, CATEGORIES } from '../types/expense';
 import { parseVoiceExpense, ParsedVoiceExpense } from '../utils/voiceExpenseParser';
@@ -85,6 +87,8 @@ export const VoiceExpenseControl: React.FC<VoiceExpenseControlProps> = ({
   const [isVoiceDateModalOpen, setIsVoiceDateModalOpen] = useState<boolean>(false);
 
   const recognitionRef = useRef<any>(null);
+  const nativeListenersRef = useRef<Array<{ remove: () => Promise<void> }>>([]);
+  const nativeSessionRef = useRef<boolean>(false);
   const silenceTimeoutRef = useRef<any>(null);
   const isStartingRef = useRef<boolean>(false);
 
@@ -95,6 +99,12 @@ export const VoiceExpenseControl: React.FC<VoiceExpenseControlProps> = ({
       clearTimeout(silenceTimeoutRef.current);
       silenceTimeoutRef.current = null;
     }
+    if (nativeSessionRef.current) {
+      nativeSessionRef.current = false;
+      void NativeSpeechRecognition.stop().catch(() => undefined);
+    }
+    nativeListenersRef.current.forEach((listener) => void listener.remove().catch(() => undefined));
+    nativeListenersRef.current = [];
     if (recognitionRef.current) {
       try {
         const rec = recognitionRef.current;
@@ -190,6 +200,80 @@ export const VoiceExpenseControl: React.FC<VoiceExpenseControlProps> = ({
       typeof window !== 'undefined'
         ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
         : null;
+
+    // Native Android/iOS apps must use the OS recognizer. Android WebView does not expose Web Speech Recognition reliably.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const availability = await NativeSpeechRecognition.available();
+        if (!availability.available) {
+          isStartingRef.current = false;
+          setStatus('unsupported');
+          setErrorDetails({
+            title: 'Speech service unavailable',
+            message: 'This device has no available speech recognition service. Install or enable a speech recognition service (for example, Google Speech Recognition) in Android settings, then try again. Manual entry remains available.',
+          });
+          return;
+        }
+
+        const permission = await NativeSpeechRecognition.requestPermissions();
+        if (permission.speechRecognition !== 'granted') {
+          isStartingRef.current = false;
+          setStatus('error');
+          setErrorDetails({ title: 'Microphone permission required', message: 'Allow microphone access for ExpenseFlow in Android app settings, then tap Try Again.' });
+          return;
+        }
+
+        const partialListener = await NativeSpeechRecognition.addListener('partialResults', (event) => {
+          const transcript = (event.accumulatedText || event.accumulated || event.matches?.[0] || '').trim();
+          if (transcript) {
+            setFinalTranscript(transcript);
+            setInterimTranscript(transcript);
+            if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+            silenceTimeoutRef.current = setTimeout(() => { void NativeSpeechRecognition.stop().catch(() => undefined); }, 3500);
+          }
+        });
+        nativeListenersRef.current.push(partialListener);
+
+        const stateListener = await NativeSpeechRecognition.addListener('listeningState', (event) => {
+          if (event.state === 'started' || event.status === 'started') {
+            isStartingRef.current = false;
+            setStatus('listening');
+            setErrorDetails(null);
+          } else if (event.state === 'stopped' || event.status === 'stopped') {
+            nativeSessionRef.current = false;
+            if (silenceTimeoutRef.current) { clearTimeout(silenceTimeoutRef.current); silenceTimeoutRef.current = null; }
+            setStatus((previous) => previous === 'listening' ? 'processing' : previous);
+          }
+        });
+        nativeListenersRef.current.push(stateListener);
+
+        const errorListener = await NativeSpeechRecognition.addListener('error', (event) => {
+          isStartingRef.current = false;
+          nativeSessionRef.current = false;
+          setStatus('error');
+          setErrorDetails({ title: 'Voice recognition error', message: event.message || `Speech recognition failed (${event.code || 'unknown error'}). Check the device speech service or enter details manually.` });
+        });
+        nativeListenersRef.current.push(errorListener);
+
+        nativeSessionRef.current = true;
+        await NativeSpeechRecognition.start({
+          language: typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US',
+          maxResults: 1,
+          partialResults: true,
+          popup: false,
+        });
+        return;
+      } catch (error: any) {
+        nativeSessionRef.current = false;
+        nativeListenersRef.current.forEach((listener) => void listener.remove().catch(() => undefined));
+        nativeListenersRef.current = [];
+        isStartingRef.current = false;
+        setStatus('error');
+        const detail = error?.message || error?.code || 'unknown error';
+        setErrorDetails({ title: 'Voice entry unavailable', message: `Android speech recognition could not start: ${detail}. Check that a speech recognition service is installed and enabled, or enter details manually.` });
+        return;
+      }
+    }
 
     // 2. Secure context validation
     if (!isSecure) {
