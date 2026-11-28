@@ -31,7 +31,8 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "tsx": "^4.21.0",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "@capgo/capacitor-speech-recognition": "8.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
